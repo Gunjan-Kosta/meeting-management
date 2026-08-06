@@ -1,0 +1,169 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  STATE_ADMIN
+  DISTRICT_USER
+  VIEWER
+}
+
+enum MeetingType {
+  DISTRICT_LEVEL
+  SANSAD
+  RAJYA_SADAK_SURAKSHA
+  SAMIKSHA_BAITHAK
+  MANTRI_PARISHAD
+}
+
+enum MeetingStatus {
+  DRAFT
+  SUBMITTED
+  CLOSED
+}
+
+enum ActionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum DocumentType {
+  MOM
+  ATTENDANCE_SHEET
+  AGENDA
+  PROCEEDINGS
+  SUPPORTING
+}
+
+model User {
+  id            String        @id @default(uuid())
+  email         String        @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  role          Role          @default(VIEWER)
+  departmentId  String?
+  department    Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  district      String?
+  profileImage  String?
+  active        Boolean       @default(true)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  auditLogs     AuditLog[]
+  actionItems   MeetingActionTracker[]
+  meetings      Meeting[]     @relation("MeetingCreator")
+  documents     MeetingDocument[]
+
+  @@index([email])
+  @@index([role])
+}
+
+model Department {
+  id          String                 @id @default(uuid())
+  name        String                 @unique
+  code        String                 @unique
+  description String?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  users       User[]
+  actionItems MeetingActionTracker[]
+}
+
+model Meeting {
+  id          String                 @id @default(uuid())
+  meetingCode String                 @unique
+  title       String
+  description String
+  meetingType MeetingType
+  meetingDate DateTime
+  venue       String
+  district    String
+  status      MeetingStatus          @default(DRAFT)
+  creatorId   String
+  creator     User                   @relation("MeetingCreator", fields: [creatorId], references: [id])
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  documents    MeetingDocument[]
+  participants MeetingParticipant[]
+  actionItems  MeetingActionTracker[]
+
+  @@index([meetingCode])
+  @@index([meetingType])
+  @@index([status])
+  @@index([district])
+}
+
+model MeetingDocument {
+  id           String       @id @default(uuid())
+  meetingId    String
+  meeting      Meeting      @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  name         String
+  filePath     String
+  fileType     DocumentType
+  fileSize     Int
+  uploadedById String
+  uploadedBy   User         @relation(fields: [uploadedById], references: [id])
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  @@index([meetingId])
+}
+
+model MeetingParticipant {
+  id          String   @id @default(uuid())
+  meetingId   String
+  meeting     Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  name        String
+  designation String
+  department  String
+  email       String?
+  phone       String?
+  isPresent   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([meetingId])
+}
+
+model MeetingActionTracker {
+  id                   String       @id @default(uuid())
+  meetingId            String
+  meeting              Meeting      @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  title                String
+  description          String
+  assignedDepartmentId String
+  assignedDepartment   Department   @relation(fields: [assignedDepartmentId], references: [id])
+  assignedUserId       String?
+  assignedUser         User?        @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+  targetDate           DateTime
+  remarks              String?
+  status               ActionStatus @default(PENDING)
+  createdAt            DateTime     @default(now())
+  updatedAt            DateTime     @updatedAt
+
+  @@index([meetingId])
+  @@index([assignedDepartmentId])
+  @@index([status])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  details   String
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+}

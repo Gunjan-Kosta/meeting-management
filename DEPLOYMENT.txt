@@ -1,0 +1,155 @@
+================================================================================
+          ENTERPRISE MEETING MANAGEMENT & COMPLIANCE SYSTEM
+                      DEPLOYMENT & RUNNING GUIDE
+================================================================================
+
+1. PREREQUISITES
+--------------------------------------------------------------------------------
+Before setting up the project, ensure you have the following installed:
+  - Node.js (v18.0.0 or higher)
+  - npm (v9.0.0 or higher)
+  - Git
+
+
+2. PROJECT ARCHITECTURE
+--------------------------------------------------------------------------------
+The repository is split into two main directories:
+  - /server : Express.js REST API with Prisma ORM & SQLite database
+  - /client : React 19 single-page application built with Vite and Tailwind CSS
+
+
+3. ENVIRONMENT CONFIGURATION
+--------------------------------------------------------------------------------
+Ensure the server environment configuration file exists at `server/.env`:
+
+  [server/.env]
+  PORT=5000
+  DATABASE_URL="file:./dev.db"
+  JWT_SECRET="enterprise_meeting_management_secret_key_2026_secure"
+  JWT_EXPIRES_IN="24h"
+  NODE_ENV="development"
+  UPLOAD_DIR="./uploads"
+
+
+4. STEP-BY-STEP LOCAL SETUP & RUNNING
+--------------------------------------------------------------------------------
+
+STEP 1: Install Backend Dependencies & Prepare Database
+  Open your terminal and execute:
+    cd server
+    npm install
+    npx prisma db push
+    node seed.js
+
+  (This sets up the SQLite database schema and seeds default accounts and sample data).
+
+STEP 2: Install Frontend Dependencies
+  In a new terminal window or tab, execute:
+    cd client
+    npm install
+
+STEP 3: Start the Backend Server
+  In the `server` directory, run:
+    npm run dev
+
+  The backend API server will start on: http://localhost:5000
+  Healthcheck endpoint: http://localhost:5000/api/health
+
+STEP 4: Start the Frontend Client
+  In the `client` directory, run:
+    npm run dev
+
+  The Vite development server will start on: http://localhost:3000
+
+
+5. DEMO LOGIN CREDENTIALS
+--------------------------------------------------------------------------------
+You can log into the portal at http://localhost:3000 using any of the seeded accounts:
+
+  1. State Administrator (Full Access):
+     Email: admin@gov.in
+     Password: Admin@123
+
+  2. District Officer (District Scoped Access):
+     Email: district.user@gov.in
+     Password: Admin@123
+
+  3. Public Auditor (Read-Only Access):
+     Email: viewer@gov.in
+     Password: Admin@123
+
+
+6. PRODUCTION DEPLOYMENT GUIDE
+--------------------------------------------------------------------------------
+
+OPTION A: Deploying on Linux VPS / Cloud Server (Ubuntu + Nginx + PM2)
+
+  1. Clone Repository & Install Dependencies:
+     git clone <repository_url>
+     cd meeting-management/server && npm install --production
+     cd ../client && npm install
+
+  2. Build Frontend Production Bundle:
+     cd client
+     npm run build
+     (This generates static files inside `client/dist/`).
+
+  3. Database Setup:
+     cd ../server
+     npx prisma db push
+     node seed.js
+
+  4. Run Backend with PM2 Process Manager:
+     npm install -g pm2
+     pm2 start app.js --name "meeting-management-backend"
+     pm2 save
+     pm2 startup
+
+  5. Configure Nginx Reverse Proxy:
+     Point Nginx root to `/var/www/meeting-management/client/dist` and proxy
+     `/api` and `/uploads` routes to `http://127.0.0.1:5000`.
+
+     Sample Nginx Configuration:
+     --------------------------------------------------------------------------
+     server {
+         listen 80;
+         server_name your-domain.com;
+
+         root /var/www/meeting-management/client/dist;
+         index index.html;
+
+         location / {
+             try_files $uri $uri/ /index.html;
+         }
+
+         location /api/ {
+             proxy_pass http://127.0.0.1:5000/api/;
+             proxy_http_version 1.1;
+             proxy_set_header Upgrade $http_upgrade;
+             proxy_set_header Connection 'upgrade';
+             proxy_set_header Host $host;
+             proxy_cache_bypass $http_upgrade;
+         }
+
+         location /uploads/ {
+             proxy_pass http://127.0.0.1:5000/uploads/;
+         }
+     }
+     --------------------------------------------------------------------------
+
+
+OPTION B: Deploying on Cloud PaaS (Render / Railway / Vercel)
+
+  1. Backend (Render / Railway):
+     - Create a Node.js web service linked to `/server`.
+     - Set Build Command: `npm install && npx prisma db push`
+     - Set Start Command: `npm start`
+     - Environment Variables: Add `JWT_SECRET`, `NODE_ENV=production`, `PORT=5000`.
+
+  2. Frontend (Vercel / Netlify):
+     - Deploy `/client` folder.
+     - Build command: `npm run build`
+     - Output directory: `dist`
+     - Update API baseURL in `src/services/api.js` to target your deployed backend domain.
+
+================================================================================
