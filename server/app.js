@@ -54,19 +54,43 @@ app.use('/uploads', express.static(path.resolve(uploadDir)));
 // Apply General Rate Limiter
 app.use('/api', apiLimiter);
 
-// Route Registrations
+// Route Registrations (Mounted on both /api/* and /* for dual compatibility)
 app.use('/api/auth', authRoutes);
+app.use('/auth', authRoutes);
+
 app.use('/api/meetings', meetingRoutes);
+app.use('/meetings', meetingRoutes);
+
 app.use('/api/documents', documentRoutes);
+app.use('/documents', documentRoutes);
+
 app.use('/api/actions', actionRoutes);
+app.use('/actions', actionRoutes);
+
 app.use('/api/departments', departmentRoutes);
+app.use('/departments', departmentRoutes);
+
 app.use('/api/users', userRoutes);
+app.use('/users', userRoutes);
+
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/dashboard', dashboardRoutes);
+
 app.use('/api/reports', reportRoutes);
+app.use('/reports', reportRoutes);
+
 app.use('/api/audit-logs', auditRoutes);
+app.use('/audit-logs', auditRoutes);
 
 // Healthcheck Endpoint
 app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'HEALTHY',
+    system: 'Enterprise Meeting Management System',
+    timestamp: new Date().toISOString(),
+  });
+});
+app.get('/health', (req, res) => {
   res.json({
     status: 'HEALTHY',
     system: 'Enterprise Meeting Management System',
