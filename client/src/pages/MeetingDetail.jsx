@@ -239,7 +239,7 @@ export default function MeetingDetail() {
                   toast.error(err.response?.data?.message || 'Failed to submit meeting.');
                 }
               }}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg shadow transition-all flex items-center space-x-1.5"
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg shadow transition-all flex items-center space-x-1.5 cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
               <span>Submit Record</span>
@@ -253,7 +253,7 @@ export default function MeetingDetail() {
                 toast.success('Meeting CLOSED.');
                 fetchMeetingDetails();
               }}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-lg shadow transition-all flex items-center space-x-1.5"
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-lg shadow transition-all flex items-center space-x-1.5 cursor-pointer"
             >
               <CheckCircle className="w-3.5 h-3.5" />
               <span>Close Meeting</span>
@@ -614,13 +614,27 @@ export default function MeetingDetail() {
               </div>
             </div>
 
-            {/* Modal Body Frame */}
+            {/* Modal Body Frame with Smart Fallback */}
             <div className="flex-1 p-2 bg-slate-900 overflow-hidden flex flex-col items-center justify-center relative">
-              <iframe
-                src={getDocUrl(previewDoc.filePath)}
-                title={previewDoc.name}
-                className="w-full h-full rounded-xl bg-white border-0 shadow-inner"
-              ></iframe>
+              {previewDoc.name?.toLowerCase().endsWith('.pdf') ? (
+                <object
+                  data={getDocUrl(previewDoc.filePath)}
+                  type="application/pdf"
+                  className="w-full h-full rounded-xl bg-white border-0 shadow-inner"
+                >
+                  <iframe
+                    src={getDocUrl(previewDoc.filePath)}
+                    title={previewDoc.name}
+                    className="w-full h-full rounded-xl bg-white border-0 shadow-inner"
+                  ></iframe>
+                </object>
+              ) : (
+                <iframe
+                  src={`https://docs.google.com/viewer?url=${encodeURIComponent(getDocUrl(previewDoc.filePath))}&embedded=true`}
+                  title={previewDoc.name}
+                  className="w-full h-full rounded-xl bg-white border-0 shadow-inner"
+                ></iframe>
+              )}
             </div>
           </div>
         </div>
