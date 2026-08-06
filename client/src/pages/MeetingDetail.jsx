@@ -58,6 +58,17 @@ export default function MeetingDetail() {
   // Delete document modal
   const [deleteDocId, setDeleteDocId] = useState(null);
 
+  // Helper to build absolute document URL for cross-origin hosting (Vercel + Render)
+  const getDocUrl = (filePath) => {
+    if (!filePath) return '';
+    if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
+      return filePath;
+    }
+    const apiBase = API.defaults.baseURL || '/api';
+    const backendOrigin = apiBase.replace(/\/api\/?$/, '').replace(/\/+$/, '');
+    return `${backendOrigin}${filePath.startsWith('/') ? '' : '/'}${filePath}`;
+  };
+
   const fetchMeetingDetails = async () => {
     try {
       const res = await API.get(`/meetings/${id}`);
@@ -395,12 +406,17 @@ export default function MeetingDetail() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {secDocs.map((doc) => (
                       <div key={doc.id} className="p-3.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600 flex items-center justify-between shadow-xs">
-                        <div className="flex items-center space-x-3 min-w-0 pr-2">
-                          <div className="p-2 bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 rounded-lg shrink-0">
+                        <div
+                          className="flex items-center space-x-3 min-w-0 pr-2 cursor-pointer group"
+                          onClick={() => setPreviewDoc(doc)}
+                        >
+                          <div className="p-2 bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 rounded-lg shrink-0 group-hover:scale-105 transition-transform">
                             <FileText className="w-4 h-4" />
                           </div>
                           <div className="min-w-0">
-                            <p className="text-xs font-semibold text-slate-900 dark:text-white truncate">{doc.name}</p>
+                            <p className="text-xs font-semibold text-slate-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                              {doc.name}
+                            </p>
                             <div className="flex items-center space-x-2 text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
                               <span>{(doc.fileSize / (1024 * 1024)).toFixed(2)} MB</span>
                               <span>•</span>
@@ -409,19 +425,20 @@ export default function MeetingDetail() {
                           </div>
                         </div>
 
-                        <div className="flex items-center space-x-1 shrink-0">
-                          {/* View On Website Button */}
+                        <div className="flex items-center space-x-2 shrink-0">
+                          {/* Labeled View Button */}
                           <button
                             onClick={() => setPreviewDoc(doc)}
-                            className="p-1.5 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                            className="px-2.5 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/80 hover:bg-blue-100 dark:hover:bg-blue-900/90 border border-blue-200 dark:border-blue-800 rounded-lg transition-colors flex items-center space-x-1 cursor-pointer"
                             title="View Document on Website"
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>View</span>
                           </button>
 
                           {/* Download Button */}
                           <a
-                            href={doc.filePath}
+                            href={getDocUrl(doc.filePath)}
                             target="_blank"
                             rel="noreferrer"
                             download
@@ -568,7 +585,7 @@ export default function MeetingDetail() {
 
               <div className="flex items-center space-x-2">
                 <a
-                  href={previewDoc.filePath}
+                  href={getDocUrl(previewDoc.filePath)}
                   target="_blank"
                   rel="noreferrer"
                   className="px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 rounded-lg transition-colors flex items-center space-x-1.5"
@@ -578,7 +595,7 @@ export default function MeetingDetail() {
                   <span>Open Tab</span>
                 </a>
                 <a
-                  href={previewDoc.filePath}
+                  href={getDocUrl(previewDoc.filePath)}
                   download
                   className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center space-x-1.5"
                   title="Download File"
@@ -598,7 +615,7 @@ export default function MeetingDetail() {
             {/* Modal Body Frame */}
             <div className="flex-1 p-2 bg-slate-900 overflow-hidden flex flex-col items-center justify-center relative">
               <iframe
-                src={previewDoc.filePath}
+                src={getDocUrl(previewDoc.filePath)}
                 title={previewDoc.name}
                 className="w-full h-full rounded-xl bg-white border-0 shadow-inner"
               ></iframe>
