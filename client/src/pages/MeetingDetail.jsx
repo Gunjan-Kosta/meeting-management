@@ -343,7 +343,7 @@ export default function MeetingDetail() {
                     setShowUploadModal(true);
                   }}
                   disabled={(meeting.documents?.length || 0) >= 10}
-                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium text-xs rounded-lg flex items-center space-x-1.5 transition-all shadow-xs"
+                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium text-xs rounded-lg flex items-center space-x-1.5 transition-all shadow-xs cursor-pointer"
                 >
                   <UploadCloud className="w-4 h-4" />
                   <span>Upload Document</span>
@@ -390,7 +390,7 @@ export default function MeetingDetail() {
                         setShowUploadModal(true);
                       }}
                       disabled={(meeting.documents?.length || 0) >= 10}
-                      className="px-2.5 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/60 border border-blue-200 dark:border-blue-800/50 rounded-lg transition-colors flex items-center space-x-1 disabled:opacity-40"
+                      className="px-2.5 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/60 border border-blue-200 dark:border-blue-800/50 rounded-lg transition-colors flex items-center space-x-1 disabled:opacity-40 cursor-pointer"
                     >
                       <UploadCloud className="w-3.5 h-3.5" />
                       <span>Upload</span>
@@ -426,14 +426,15 @@ export default function MeetingDetail() {
                         </div>
 
                         <div className="flex items-center space-x-2 shrink-0">
-                          {/* Labeled View Button */}
+                          {/* Prominent Solid Blue View Document Button */}
                           <button
+                            type="button"
                             onClick={() => setPreviewDoc(doc)}
-                            className="px-2.5 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/80 hover:bg-blue-100 dark:hover:bg-blue-900/90 border border-blue-200 dark:border-blue-800 rounded-lg transition-colors flex items-center space-x-1 cursor-pointer"
-                            title="View Document on Website"
+                            className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-lg shadow-xs flex items-center space-x-1.5 cursor-pointer transition-all shrink-0"
+                            title="Preview document directly on website"
                           >
                             <Eye className="w-3.5 h-3.5" />
-                            <span>View</span>
+                            <span>View Document</span>
                           </button>
 
                           {/* Download Button */}
@@ -450,8 +451,9 @@ export default function MeetingDetail() {
 
                           {user?.role !== 'VIEWER' && (
                             <button
+                              type="button"
                               onClick={() => setDeleteDocId(doc.id)}
-                              className="p-1.5 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                              className="p-1.5 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors cursor-pointer"
                               title="Delete File"
                             >
                               <Trash2 className="w-4 h-4" />
@@ -476,7 +478,7 @@ export default function MeetingDetail() {
             {user?.role !== 'VIEWER' && (
               <button
                 onClick={() => setShowActionModal(true)}
-                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg flex items-center space-x-1.5"
+                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg flex items-center space-x-1.5 cursor-pointer"
               >
                 <Plus className="w-4 h-4" />
                 <span>Add Action Item</span>
@@ -517,14 +519,14 @@ export default function MeetingDetail() {
                       {action.status === 'PENDING' && (
                         <button
                           onClick={() => handleActionStatusChange(action.id, 'IN_PROGRESS', action.remarks)}
-                          className="px-3 py-1.5 bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300 text-xs font-semibold rounded-lg hover:bg-indigo-100"
+                          className="px-3 py-1.5 bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300 text-xs font-semibold rounded-lg hover:bg-indigo-100 cursor-pointer"
                         >
                           Mark In Progress
                         </button>
                       )}
                       <button
                         onClick={() => handleActionStatusChange(action.id, 'COMPLETED', action.remarks)}
-                        className="px-3 py-1.5 bg-teal-50 text-teal-600 dark:bg-teal-950 dark:text-teal-300 text-xs font-semibold rounded-lg hover:bg-teal-100"
+                        className="px-3 py-1.5 bg-teal-50 text-teal-600 dark:bg-teal-950 dark:text-teal-300 text-xs font-semibold rounded-lg hover:bg-teal-100 cursor-pointer"
                       >
                         Mark Completed
                       </button>
