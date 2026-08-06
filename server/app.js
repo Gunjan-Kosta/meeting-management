@@ -18,6 +18,7 @@ import auditRoutes from './routes/auditRoutes.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
 import { initCronJobs } from './services/cronService.js';
+import { seedDatabase } from './seed.js';
 
 dotenv.config();
 
@@ -26,7 +27,7 @@ const PORT = process.env.PORT || 5000;
 
 // Security Middlewares
 app.use(helmet({
-  crossOriginResourcePolicy: false, // Allows cross-origin file resource fetching
+  crossOriginResourcePolicy: false,
 }));
 
 // Production CORS Security Configuration
@@ -78,6 +79,9 @@ app.use(errorHandler);
 
 // Initialize Cron Reminders
 initCronJobs();
+
+// Auto-seed database on server start
+seedDatabase().catch((err) => console.error('Startup seeding failed:', err));
 
 app.listen(PORT, () => {
   console.log(`=================================================`);
