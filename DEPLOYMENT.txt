@@ -1,155 +1,150 @@
 ================================================================================
           ENTERPRISE MEETING MANAGEMENT & COMPLIANCE SYSTEM
-                      DEPLOYMENT & RUNNING GUIDE
+                    BACKEND CLOUD DEPLOYMENT GUIDE
 ================================================================================
 
-1. PREREQUISITES
+1. BACKEND DEPLOYMENT OVERVIEW
 --------------------------------------------------------------------------------
-Before setting up the project, ensure you have the following installed:
-  - Node.js (v18.0.0 or higher)
-  - npm (v9.0.0 or higher)
-  - Git
+This document outlines production deployment strategies for the backend REST API 
+service (/server). The backend is built with Express.js, Prisma ORM, JWT authentication, 
+Multer file storage, and Node Cron schedulers.
+
+Local development servers are NOT required for cloud production deployments.
 
 
-2. PROJECT ARCHITECTURE
+2. REQUIRED PRODUCTION ENVIRONMENT VARIABLES
 --------------------------------------------------------------------------------
-The repository is split into two main directories:
-  - /server : Express.js REST API with Prisma ORM & SQLite database
-  - /client : React 19 single-page application built with Vite and Tailwind CSS
+When deploying the backend to a cloud hosting platform (e.g. Render, Railway, 
+AWS, Heroku), configure the following environment variables in your cloud console:
 
-
-3. ENVIRONMENT CONFIGURATION
---------------------------------------------------------------------------------
-Ensure the server environment configuration file exists at `server/.env`:
-
-  [server/.env]
-  PORT=5000
-  DATABASE_URL="file:./dev.db"
-  JWT_SECRET="enterprise_meeting_management_secret_key_2026_secure"
+  PORT=5000 (or provided dynamically by cloud host)
+  DATABASE_URL="file:./dev.db" (or MySQL/PostgreSQL connection string)
+  JWT_SECRET="your_production_secure_jwt_secret_key_2026"
   JWT_EXPIRES_IN="24h"
-  NODE_ENV="development"
+  NODE_ENV="production"
   UPLOAD_DIR="./uploads"
+  FRONTEND_URL="https://your-frontend-domain.com"
 
 
-4. STEP-BY-STEP LOCAL SETUP & RUNNING
+3. DEPLOYMENT OPTION 1: RENDER (RECOMMENDED PAAS)
 --------------------------------------------------------------------------------
+Render provides free/low-cost Node.js hosting with automated Git deployment.
 
-STEP 1: Install Backend Dependencies & Prepare Database
-  Open your terminal and execute:
-    cd server
-    npm install
-    npx prisma db push
-    node seed.js
+Step 1: Push Project to GitHub
+  Ensure your project is pushed to your GitHub repository:
+  https://github.com/Gunjan-Kosta/meeting-management
 
-  (This sets up the SQLite database schema and seeds default accounts and sample data).
-
-STEP 2: Install Frontend Dependencies
-  In a new terminal window or tab, execute:
-    cd client
-    npm install
-
-STEP 3: Start the Backend Server
-  In the `server` directory, run:
-    npm run dev
-
-  The backend API server will start on: http://localhost:5000
-  Healthcheck endpoint: http://localhost:5000/api/health
-
-STEP 4: Start the Frontend Client
-  In the `client` directory, run:
-    npm run dev
-
-  The Vite development server will start on: http://localhost:3000
+Step 2: Create a New Web Service on Render
+  1. Log into Render (https://render.com) and click 'New +' -> 'Web Service'.
+  2. Connect your GitHub repository meeting-management.
+  3. Configure the service parameters:
+       - Name: meeting-management-backend
+       - Root Directory: server
+       - Environment: Node
+       - Build Command: npm install && npx prisma db push && node seed.js
+       - Start Command: npm start
+  4. Add Environment Variables:
+       - JWT_SECRET: (Set a strong secret key)
+       - JWT_EXPIRES_IN: 24h
+       - NODE_ENV: production
+       - DATABASE_URL: file:./dev.db
+  5. Click 'Create Web Service'. Render will build and deploy your backend API.
 
 
-5. DEMO LOGIN CREDENTIALS
+4. DEPLOYMENT OPTION 2: RAILWAY.APP
 --------------------------------------------------------------------------------
-You can log into the portal at http://localhost:3000 using any of the seeded accounts:
-
-  1. State Administrator (Full Access):
-     Email: admin@gov.in
-     Password: Admin@123
-
-  2. District Officer (District Scoped Access):
-     Email: district.user@gov.in
-     Password: Admin@123
-
-  3. Public Auditor (Read-Only Access):
-     Email: viewer@gov.in
-     Password: Admin@123
+Step 1: Log into Railway (https://railway.app) and create a New Project.
+Step 2: Select 'Deploy from GitHub repo' and pick meeting-management.
+Step 3: Set Root Directory to /server.
+Step 4: Set Build Command: npm install && npx prisma db push && node seed.js
+Step 5: Set Start Command: npm start
+Step 6: Under Variables, set JWT_SECRET, NODE_ENV=production, and PORT.
+Step 7: Generate Domain to get your live backend URL (e.g. https://xxx.up.railway.app).
 
 
-6. PRODUCTION DEPLOYMENT GUIDE
+5. DEPLOYMENT OPTION 3: LINUX VPS (AWS EC2 / DIGITALOCEAN / LINODE)
 --------------------------------------------------------------------------------
+For dedicated server control using Ubuntu, PM2, and Nginx reverse proxy:
 
-OPTION A: Deploying on Linux VPS / Cloud Server (Ubuntu + Nginx + PM2)
+Step 1: Connect to your server via SSH:
+  ssh ubuntu@your-server-ip
 
-  1. Clone Repository & Install Dependencies:
-     git clone <repository_url>
-     cd meeting-management/server && npm install --production
-     cd ../client && npm install
+Step 2: Install Node.js (v18+) and PM2:
+  curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+  sudo apt-get install -y nodejs git nginx
+  sudo npm install -g pm2
 
-  2. Build Frontend Production Bundle:
-     cd client
-     npm run build
-     (This generates static files inside `client/dist/`).
+Step 3: Clone Repository & Setup Server Directory:
+  git clone https://github.com/Gunjan-Kosta/meeting-management.git
+  cd meeting-management/server
+  npm install
+  npx prisma db push
+  node seed.js
 
-  3. Database Setup:
-     cd ../server
-     npx prisma db push
-     node seed.js
+Step 4: Start Backend with PM2 Process Manager:
+  pm2 start app.js --name meeting-backend
+  pm2 save
+  pm2 startup
 
-  4. Run Backend with PM2 Process Manager:
-     npm install -g pm2
-     pm2 start app.js --name "meeting-management-backend"
-     pm2 save
-     pm2 startup
+Step 5: Configure Nginx Reverse Proxy:
+  Create /etc/nginx/sites-available/meeting-backend:
 
-  5. Configure Nginx Reverse Proxy:
-     Point Nginx root to `/var/www/meeting-management/client/dist` and proxy
-     `/api` and `/uploads` routes to `http://127.0.0.1:5000`.
+  server {
+      listen 80;
+      server_name api.yourdomain.com;
 
-     Sample Nginx Configuration:
-     --------------------------------------------------------------------------
-     server {
-         listen 80;
-         server_name your-domain.com;
+      location / {
+          proxy_pass http://127.0.0.1:5000;
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection 'upgrade';
+          proxy_set_header Host $host;
+          proxy_cache_bypass $http_upgrade;
+      }
+  }
 
-         root /var/www/meeting-management/client/dist;
-         index index.html;
-
-         location / {
-             try_files $uri $uri/ /index.html;
-         }
-
-         location /api/ {
-             proxy_pass http://127.0.0.1:5000/api/;
-             proxy_http_version 1.1;
-             proxy_set_header Upgrade $http_upgrade;
-             proxy_set_header Connection 'upgrade';
-             proxy_set_header Host $host;
-             proxy_cache_bypass $http_upgrade;
-         }
-
-         location /uploads/ {
-             proxy_pass http://127.0.0.1:5000/uploads/;
-         }
-     }
-     --------------------------------------------------------------------------
+  Enable site and restart Nginx:
+  sudo ln -s /etc/nginx/sites-available/meeting-backend /etc/nginx/sites-enabled/
+  sudo nginx -t
+  sudo systemctl restart nginx
 
 
-OPTION B: Deploying on Cloud PaaS (Render / Railway / Vercel)
+6. DEPLOYMENT OPTION 4: DOCKER CONTAINER
+--------------------------------------------------------------------------------
+Create a Dockerfile inside the server/ directory:
 
-  1. Backend (Render / Railway):
-     - Create a Node.js web service linked to `/server`.
-     - Set Build Command: `npm install && npx prisma db push`
-     - Set Start Command: `npm start`
-     - Environment Variables: Add `JWT_SECRET`, `NODE_ENV=production`, `PORT=5000`.
+  FROM node:18-alpine
+  WORKDIR /app
+  COPY package*.json ./
+  RUN npm install
+  COPY . .
+  RUN npx prisma generate
+  RUN npx prisma db push
+  EXPOSE 5000
+  CMD ["npm", "start"]
 
-  2. Frontend (Vercel / Netlify):
-     - Deploy `/client` folder.
-     - Build command: `npm run build`
-     - Output directory: `dist`
-     - Update API baseURL in `src/services/api.js` to target your deployed backend domain.
+Build & Run Docker Container:
+  docker build -t meeting-backend ./server
+  docker run -d -p 5000:5000 --name meeting-api meeting-backend
+
+
+7. POST-DEPLOYMENT VERIFICATION
+--------------------------------------------------------------------------------
+Once deployed, test your live cloud API healthcheck endpoint:
+  GET https://<your-deployed-backend-url>/api/health
+
+Expected Response:
+  {"status":"HEALTHY","system":"Enterprise Meeting Management System","timestamp":"..."}
+
+
+8. CONNECTING FRONTEND TO DEPLOYED BACKEND
+--------------------------------------------------------------------------------
+After deploying your backend, update the frontend configuration in client/src/services/api.js:
+
+  const API = axios.create({
+    baseURL: 'https://<your-deployed-backend-url>/api',
+  });
+
+Deploy your /client directory to Vercel, Netlify, or Cloudflare Pages.
 
 ================================================================================
