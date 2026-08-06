@@ -1,11 +1,19 @@
 import bcrypt from 'bcryptjs';
+import { execSync } from 'child_process';
 import prisma from './config/db.js';
 
 export async function seedDatabase() {
-  console.log('Checking & Seeding Database...');
+  console.log('Ensuring database schema and seeding initial data...');
 
   try {
-    // Create Departments
+    // 1. Ensure SQLite database tables exist on disk
+    try {
+      execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit' });
+    } catch (dbErr) {
+      console.warn('Prisma db push warning:', dbErr.message);
+    }
+
+    // 2. Create Departments
     const deptRoad = await prisma.department.upsert({
       where: { code: 'PWD-ROAD' },
       update: {},

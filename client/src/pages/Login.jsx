@@ -28,7 +28,8 @@ export default function Login() {
       toast.success(`Welcome back, ${user.firstName}!`);
       navigate('/dashboard');
     } catch (error) {
-      const msg = error.response?.data?.message || 'Login failed. Please verify your credentials.';
+      console.error('[LOGIN ERROR]', error);
+      const msg = error.response?.data?.message || error.message || 'Login failed. Please check your credentials or backend server.';
       toast.error(msg);
     } finally {
       setLoading(false);
