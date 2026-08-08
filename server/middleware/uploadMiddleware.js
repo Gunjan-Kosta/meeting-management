@@ -24,7 +24,7 @@ const fileFilter = (req, file, cb) => {
   if (ALLOWED_EXTENSIONS.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error(`Invalid file type: ${ext}. Only PDF, DOCX, and XLSX files are permitted.`), false);
+    cb(new Error(`Invalid file type: ${ext}. Permitted formats: PDF, DOCX, XLSX, JPG, JPEG, PNG, WEBP.`), false);
   }
 };
 

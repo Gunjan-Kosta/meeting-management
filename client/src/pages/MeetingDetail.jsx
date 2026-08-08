@@ -24,6 +24,7 @@ import {
   UserCheck,
   Tag,
   X,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 export default function MeetingDetail() {
@@ -67,6 +68,12 @@ export default function MeetingDetail() {
     const apiBase = API.defaults.baseURL || '/api';
     const backendOrigin = apiBase.replace(/\/api\/?$/, '').replace(/\/+$/, '');
     return `${backendOrigin}${filePath.startsWith('/') ? '' : '/'}${filePath}`;
+  };
+
+  const isImageFile = (filename) => {
+    if (!filename) return false;
+    const lower = filename.toLowerCase();
+    return lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.png') || lower.endsWith('.webp');
   };
 
   const fetchMeetingDetails = async () => {
@@ -322,7 +329,7 @@ export default function MeetingDetail() {
                 <span>Document Submissions</span>
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Official MoM, Attendance Sheet, Agenda, Proceedings & Supporting documents (PDF, DOCX, XLSX up to 10MB each).
+                Official MoM, Attendance Sheet, Agenda, Proceedings & Supporting files (PDF, DOCX, XLSX, JPG, PNG, WEBP up to 10MB each).
               </p>
             </div>
             <div className="flex items-center space-x-3">
@@ -404,64 +411,71 @@ export default function MeetingDetail() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {secDocs.map((doc) => (
-                      <div key={doc.id} className="p-3.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600 flex items-center justify-between shadow-xs">
-                        <div
-                          className="flex items-center space-x-3 min-w-0 pr-2 cursor-pointer group"
-                          onClick={() => setPreviewDoc(doc)}
-                        >
-                          <div className="p-2 bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400 rounded-lg shrink-0 group-hover:scale-105 transition-transform">
-                            <FileText className="w-4 h-4" />
-                          </div>
-                          <div className="min-w-0">
-                            <p className="text-xs font-semibold text-slate-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                              {doc.name}
-                            </p>
-                            <div className="flex items-center space-x-2 text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                              <span>{(doc.fileSize / (1024 * 1024)).toFixed(2)} MB</span>
-                              <span>•</span>
-                              <span>Uploaded {new Date(doc.createdAt).toLocaleDateString()}</span>
+                    {secDocs.map((doc) => {
+                      const isImg = isImageFile(doc.name);
+                      return (
+                        <div key={doc.id} className="p-3.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600 flex items-center justify-between shadow-xs">
+                          <div
+                            className="flex items-center space-x-3 min-w-0 pr-2 cursor-pointer group"
+                            onClick={() => setPreviewDoc(doc)}
+                          >
+                            <div className={`p-2 rounded-lg shrink-0 group-hover:scale-105 transition-transform ${
+                              isImg
+                                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400'
+                                : 'bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400'
+                            }`}>
+                              {isImg ? <ImageIcon className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-slate-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                {doc.name}
+                              </p>
+                              <div className="flex items-center space-x-2 text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
+                                <span>{(doc.fileSize / (1024 * 1024)).toFixed(2)} MB</span>
+                                <span>•</span>
+                                <span>Uploaded {new Date(doc.createdAt).toLocaleDateString()}</span>
+                              </div>
                             </div>
                           </div>
-                        </div>
 
-                        <div className="flex items-center space-x-2 shrink-0">
-                          {/* Prominent Solid Blue View Document Button */}
-                          <button
-                            type="button"
-                            onClick={() => setPreviewDoc(doc)}
-                            className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-lg shadow-xs flex items-center space-x-1.5 cursor-pointer transition-all shrink-0"
-                            title="Preview document directly on website"
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                            <span>View Document</span>
-                          </button>
-
-                          {/* Download Button */}
-                          <a
-                            href={getDocUrl(doc.filePath)}
-                            target="_blank"
-                            rel="noreferrer"
-                            download
-                            className="p-1.5 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                            title="Download File"
-                          >
-                            <Download className="w-4 h-4" />
-                          </a>
-
-                          {user?.role !== 'VIEWER' && (
+                          <div className="flex items-center space-x-2 shrink-0">
+                            {/* Prominent Solid Blue View Document Button */}
                             <button
                               type="button"
-                              onClick={() => setDeleteDocId(doc.id)}
-                              className="p-1.5 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors cursor-pointer"
-                              title="Delete File"
+                              onClick={() => setPreviewDoc(doc)}
+                              className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-lg shadow-xs flex items-center space-x-1.5 cursor-pointer transition-all shrink-0"
+                              title="Preview document directly on website"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Eye className="w-3.5 h-3.5" />
+                              <span>View Document</span>
                             </button>
-                          )}
+
+                            {/* Download Button */}
+                            <a
+                              href={getDocUrl(doc.filePath)}
+                              target="_blank"
+                              rel="noreferrer"
+                              download
+                              className="p-1.5 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                              title="Download File"
+                            >
+                              <Download className="w-4 h-4" />
+                            </a>
+
+                            {user?.role !== 'VIEWER' && (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteDocId(doc.id)}
+                                className="p-1.5 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors cursor-pointer"
+                                title="Delete File"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -573,7 +587,7 @@ export default function MeetingDetail() {
             <div className="p-4 bg-slate-100 dark:bg-slate-700/70 border-b border-slate-200 dark:border-slate-600 flex items-center justify-between">
               <div className="flex items-center space-x-3 min-w-0">
                 <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-md">
-                  <FileText className="w-5 h-5" />
+                  {isImageFile(previewDoc.name) ? <ImageIcon className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
                 </div>
                 <div className="min-w-0">
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">{previewDoc.name}</h3>
@@ -614,9 +628,17 @@ export default function MeetingDetail() {
               </div>
             </div>
 
-            {/* Modal Body Frame with Smart Fallback */}
-            <div className="flex-1 p-2 bg-slate-900 overflow-hidden flex flex-col items-center justify-center relative">
-              {previewDoc.name?.toLowerCase().endsWith('.pdf') ? (
+            {/* Modal Body Frame with Smart Support for Images, PDFs, and Office Docs */}
+            <div className="flex-1 p-3 bg-slate-900 overflow-auto flex flex-col items-center justify-center relative">
+              {isImageFile(previewDoc.name) ? (
+                <div className="max-w-full max-h-full flex items-center justify-center p-2">
+                  <img
+                    src={getDocUrl(previewDoc.filePath)}
+                    alt={previewDoc.name}
+                    className="max-w-full max-h-[75vh] object-contain rounded-lg shadow-2xl border border-slate-700 bg-slate-950"
+                  />
+                </div>
+              ) : previewDoc.name?.toLowerCase().endsWith('.pdf') ? (
                 <object
                   data={getDocUrl(previewDoc.filePath)}
                   type="application/pdf"
@@ -645,7 +667,7 @@ export default function MeetingDetail() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
           <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 max-w-md w-full p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Upload Meeting Document</h3>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Upload Meeting Document / Image</h3>
               <button onClick={() => setShowUploadModal(false)}><X className="w-5 h-5 text-slate-400" /></button>
             </div>
 
@@ -666,11 +688,13 @@ export default function MeetingDetail() {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Select Files (PDF, DOCX, XLSX - Max 10MB)</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Select Files (PDF, DOCX, XLSX, JPG, PNG, WEBP - Max 10MB)
+                </label>
                 <input
                   type="file"
                   multiple
-                  accept=".pdf,.docx,.xlsx"
+                  accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
                   onChange={(e) => setUploadFiles(Array.from(e.target.files))}
                   className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                 />
