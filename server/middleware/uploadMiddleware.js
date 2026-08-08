@@ -3,7 +3,13 @@ import path from 'path';
 import fs from 'fs';
 import { MAX_FILE_SIZE, ALLOWED_EXTENSIONS } from '../utils/fileValidator.js';
 
-const uploadDir = process.env.UPLOAD_DIR || './uploads';
+const getPersistentUploadDir = () => {
+  if (process.env.UPLOAD_DIR) return process.env.UPLOAD_DIR;
+  if (fs.existsSync('/var/data')) return '/var/data/uploads';
+  return './uploads';
+};
+
+const uploadDir = getPersistentUploadDir();
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }

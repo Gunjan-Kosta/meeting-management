@@ -46,8 +46,14 @@ app.use(cors({
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Ensure upload folder exists and serve static uploads with framing permission
-const uploadDir = process.env.UPLOAD_DIR || './uploads';
+// Auto-detect persistent disk storage (e.g. Render Persistent Disk /var/data or custom path)
+const getPersistentUploadDir = () => {
+  if (process.env.UPLOAD_DIR) return process.env.UPLOAD_DIR;
+  if (fs.existsSync('/var/data')) return '/var/data/uploads';
+  return './uploads';
+};
+
+const uploadDir = getPersistentUploadDir();
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
@@ -121,6 +127,8 @@ app.listen(PORT, () => {
   console.log(` Meeting Management System Server Running!`);
   console.log(` Port: ${PORT}`);
   console.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(` Upload Directory: ${path.resolve(uploadDir)}`);
+  console.log(` Database: ${process.env.DATABASE_URL || 'default dev.db'}`);
   console.log(`=================================================`);
 });
 
