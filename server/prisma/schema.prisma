@@ -1,5 +1,5 @@
 datasource db {
-  provider = "sqlite"
+  provider = "mongodb"
   url      = env("DATABASE_URL")
 }
 
@@ -42,31 +42,30 @@ enum DocumentType {
 }
 
 model User {
-  id            String        @id @default(uuid())
-  email         String        @unique
-  passwordHash  String
-  firstName     String
-  lastName      String
-  role          Role          @default(VIEWER)
-  departmentId  String?
-  department    Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
-  district      String?
-  profileImage  String?
-  active        Boolean       @default(true)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id           String        @id @default(auto()) @map("_id") @db.ObjectId
+  email        String        @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  role         Role          @default(VIEWER)
+  departmentId String?       @db.ObjectId
+  department   Department?   @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  district     String?
+  profileImage String?
+  active       Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
-  auditLogs     AuditLog[]
-  actionItems   MeetingActionTracker[]
-  meetings      Meeting[]     @relation("MeetingCreator")
-  documents     MeetingDocument[]
+  auditLogs    AuditLog[]
+  actionItems  MeetingActionTracker[]
+  meetings     Meeting[]     @relation("MeetingCreator")
+  documents    MeetingDocument[]
 
-  @@index([email])
   @@index([role])
 }
 
 model Department {
-  id          String                 @id @default(uuid())
+  id          String                 @id @default(auto()) @map("_id") @db.ObjectId
   name        String                 @unique
   code        String                 @unique
   description String?
@@ -78,7 +77,7 @@ model Department {
 }
 
 model Meeting {
-  id          String                 @id @default(uuid())
+  id          String                 @id @default(auto()) @map("_id") @db.ObjectId
   meetingCode String                 @unique
   title       String
   description String
@@ -87,7 +86,7 @@ model Meeting {
   venue       String
   district    String
   status      MeetingStatus          @default(DRAFT)
-  creatorId   String
+  creatorId   String                 @db.ObjectId
   creator     User                   @relation("MeetingCreator", fields: [creatorId], references: [id])
   createdAt   DateTime               @default(now())
   updatedAt   DateTime               @updatedAt
@@ -96,21 +95,20 @@ model Meeting {
   participants MeetingParticipant[]
   actionItems  MeetingActionTracker[]
 
-  @@index([meetingCode])
   @@index([meetingType])
   @@index([status])
   @@index([district])
 }
 
 model MeetingDocument {
-  id           String       @id @default(uuid())
-  meetingId    String
+  id           String       @id @default(auto()) @map("_id") @db.ObjectId
+  meetingId    String       @db.ObjectId
   meeting      Meeting      @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   name         String
   filePath     String
   fileType     DocumentType
   fileSize     Int
-  uploadedById String
+  uploadedById String       @db.ObjectId
   uploadedBy   User         @relation(fields: [uploadedById], references: [id])
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
@@ -119,8 +117,8 @@ model MeetingDocument {
 }
 
 model MeetingParticipant {
-  id          String   @id @default(uuid())
-  meetingId   String
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  meetingId   String   @db.ObjectId
   meeting     Meeting  @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   name        String
   designation String
@@ -135,14 +133,14 @@ model MeetingParticipant {
 }
 
 model MeetingActionTracker {
-  id                   String       @id @default(uuid())
-  meetingId            String
+  id                   String       @id @default(auto()) @map("_id") @db.ObjectId
+  meetingId            String       @db.ObjectId
   meeting              Meeting      @relation(fields: [meetingId], references: [id], onDelete: Cascade)
   title                String
   description          String
-  assignedDepartmentId String
+  assignedDepartmentId String       @db.ObjectId
   assignedDepartment   Department   @relation(fields: [assignedDepartmentId], references: [id])
-  assignedUserId       String?
+  assignedUserId       String?      @db.ObjectId
   assignedUser         User?        @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
   targetDate           DateTime
   remarks              String?
@@ -156,8 +154,8 @@ model MeetingActionTracker {
 }
 
 model AuditLog {
-  id        String   @id @default(uuid())
-  userId    String?
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  userId    String?  @db.ObjectId
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   action    String
   details   String

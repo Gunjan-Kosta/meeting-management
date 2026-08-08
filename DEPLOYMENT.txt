@@ -1,99 +1,72 @@
 ================================================================================
           ENTERPRISE MEETING MANAGEMENT & COMPLIANCE SYSTEM
-                COMPLETE CLOUD DEPLOYMENT & PERSISTENCE GUIDE
+                 MONGODB ATLAS CLOUD DEPLOYMENT GUIDE
 ================================================================================
 
-1. DEPLOYMENT & DATABASE PERSISTENCE ARCHITECTURE
+1. OVERVIEW & 100% FREE CLOUD PERSISTENCE
 --------------------------------------------------------------------------------
-The backend is built with Express.js, Prisma ORM, and JWT authentication.
-To guarantee that user data, meetings, documents, and modified passwords are
-NEVER deleted or overwritten during redeployments or server restarts:
+The backend is now powered by Prisma ORM with native MongoDB Atlas support.
+MongoDB Atlas provides a 100% free, forever-persistent cloud database cluster (M0)
+that is completely independent of container redeployments.
 
-  - Database setup is separated into:
-      a) First-time initialization (runs schema push and initial default seed).
-      b) Normal production startup (preserves 100% of existing data).
-  - The seed script (seed.js) is 100% idempotent:
-      - It NEVER drops, truncates, or resets existing tables.
-      - It NEVER overwrites existing user passwords, custom accounts, or meetings.
-      - If existing records are found, it skips them safely.
+Benefits:
+  - Zero paid subscriptions or disks required on Render or Vercel.
+  - 100% of your created meetings, uploaded document records, action items,
+    modified passwords, and audit logs are permanently stored in the cloud.
+  - Every time a new commit is pushed to GitHub, existing data in MongoDB
+    Atlas remains 100% untouched.
 
 
-2. BACKEND CLOUD DEPLOYMENT ON RENDER
+2. HOW TO CONNECT MONGODB ATLAS ON RENDER
 --------------------------------------------------------------------------------
-Step 1: Push Repository to GitHub
-  Ensure your latest changes are pushed to:
-  https://github.com/Gunjan-Kosta/meeting-management
+Step 1: Get Your MongoDB Atlas Connection String
+  1. Go to https://cloud.mongodb.com and log in.
+  2. Click 'Connect' on your cluster -> 'Drivers' (Node.js).
+  3. Copy your connection string:
+     mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/meeting_management?retryWrites=true&w=majority
+     (Replace <username> and <password> with your database user credentials).
 
-Step 2: Create a New Web Service on Render
-  1. Log into Render (https://render.com) and click 'New +' -> 'Web Service'.
-  2. Connect your GitHub repository 'meeting-management'.
-  3. Configure parameters:
-       - Name: meeting-management-backend
-       - Root Directory: server
-       - Environment: Node
-       - Build Command: npm install && npx prisma generate
-       - Start Command: npm start
-
-  4. Environment Variables:
-       - JWT_SECRET: (Use a secure key, e.g. gov_meeting_mgmt_prod_jwt_secret_983f21a47b0e56c1d42890ef)
+Step 2: Add Environment Variables in Render
+  1. Open your Render Web Service dashboard (meeting-management-backend).
+  2. Go to the 'Environment' tab.
+  3. Set / Update the following environment variables:
+       - DATABASE_URL: mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/meeting_management?retryWrites=true&w=majority
+       - JWT_SECRET: (e.g. gov_meeting_mgmt_prod_jwt_secret_983f21a47b0e56c1d42890ef)
        - JWT_EXPIRES_IN: 24h
        - NODE_ENV: production
-       - DATABASE_URL: file:./dev.db (or your PostgreSQL / MySQL connection string)
-       - FRONTEND_URL: https://your-app-name.vercel.app
+       - FRONTEND_URL: https://meeting-management-client.vercel.app
 
-  5. First-Time Setup on Render:
-     For a brand-new database instance, open the Render 'Shell' tab or run once:
-       npm run db:setup
+Step 3: First-Time Setup on MongoDB
+  When your Render backend boots for the first time with your MongoDB connection string,
+  it will automatically initialize default departments, admin accounts, and indexes safely!
+  Alternatively, you can run from the Render Shell tab:
+     npm run db:setup
 
 
-3. PRODUCTION DATABASE PERSISTENCE OPTIONS
+3. FRONTEND DEPLOYMENT ON VERCEL (ALREADY CONFIGURED)
 --------------------------------------------------------------------------------
-OPTION A: MANAGED POSTGRESQL / MYSQL (SUPABASE, NEON, RAILWAY, AWS RDS, RENDER PG)
-  For enterprise multi-server production persistence:
-  1. Create a free PostgreSQL or MySQL instance (e.g. Supabase, Render PostgreSQL).
-  2. In your cloud console, set DATABASE_URL to your remote connection string:
-     DATABASE_URL="postgresql://postgres:password@db.supabase.co:5432/postgres"
-  3. Change datasource in server/prisma/schema.prisma (if using postgresql/mysql):
-     datasource db {
-       provider = "postgresql" // or "mysql"
-       url      = env("DATABASE_URL")
-     }
-  4. Run: npx prisma db push
-
-OPTION B: SQLITE WITH RENDER PERSISTENT DISK
-  If using SQLite on Render Web Services:
-  1. In Render Dashboard -> Disks -> 'Add Disk'.
-  2. Mount path: /var/data (Size: 1GB+).
-  3. Set Environment Variable: DATABASE_URL="file:/var/data/dev.db"
-  4. All SQLite records will persist permanently across all container redeploys.
+Your frontend is deployed on Vercel:
+  - Repository: Gunjan-Kosta/meeting-management (Root directory: /client)
+  - Environment Variable on Vercel:
+      VITE_API_BASE_URL: https://meeting-management-backend-28xq.onrender.com/api
 
 
-4. FRONTEND DEPLOYMENT ON VERCEL (STEP-BY-STEP)
+4. DEMO ACCOUNTS (AUTOMATICALLY SEEDED ON FRESH MONGODB)
 --------------------------------------------------------------------------------
-Step 1: Import Repository in Vercel
-  1. Log into Vercel (https://vercel.com) and click 'Add New' -> 'Project'.
-  2. Import your GitHub repository: Gunjan-Kosta/meeting-management.
+When initialized for the first time on a fresh MongoDB Atlas database:
 
-Step 2: Configure Build Settings
-  - Framework Preset: Vite
-  - Root Directory: client
-  - Build Command: npm run build
-  - Output Directory: dist
-  - Install Command: npm install
+  1. State Administrator:
+     Email: admin@gov.in
+     Password: Admin@123
 
-Step 3: Environment Variables
-  - Key: VITE_API_BASE_URL
-  - Value: https://meeting-management-backend-28xq.onrender.com/api
-    (Set to your live Render backend URL)
+  2. District Officer:
+     Email: district.user@gov.in
+     Password: Admin@123
 
+  3. Public Auditor:
+     Email: viewer@gov.in
+     Password: Admin@123
 
-5. SAFE RE-SEEDING COMMANDS (FOR FRESH DATABASES)
---------------------------------------------------------------------------------
-To manually initialize or seed a fresh database at any time:
-  cd server
-  npm run db:seed
-
-The seed script is safe and non-destructive: it will verify existing accounts
-and preserve all existing meetings, users, and audit records.
-
+All future meetings, action items, and account changes you create will persist
+permanently on MongoDB Atlas across all future Git pushes and redeployments!
 ================================================================================
