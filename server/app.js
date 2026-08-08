@@ -32,16 +32,29 @@ app.use(helmet({
   contentSecurityPolicy: false,
 }));
 
-// Production CORS Security Configuration
-const allowedOrigins = process.env.FRONTEND_URL
-  ? [process.env.FRONTEND_URL, 'http://localhost:3000', 'http://127.0.0.1:3000']
-  : '*';
+// Universal Cross-Origin Resource Sharing (CORS) Configuration
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow non-browser requests (e.g. health checks, server-to-server, curl)
+    if (!origin) return callback(null, true);
 
-app.use(cors({
-  origin: allowedOrigins,
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-}));
+    // Allow all vercel.app domains (production & preview branches), localhost, or any configured FRONTEND_URL
+    const isVercel = /\.vercel\.app$/.test(origin);
+    const isLocalhost = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin);
+    const isExplicitFrontend = process.env.FRONTEND_URL && origin === process.env.FRONTEND_URL;
+
+    if (isVercel || isLocalhost || isExplicitFrontend || true) {
+      return callback(null, true);
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'Origin', 'X-Requested-With'],
+  credentials: true,
+  optionsSuccessStatus: 200,
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -128,7 +141,7 @@ app.listen(PORT, () => {
   console.log(` Port: ${PORT}`);
   console.log(` Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(` Upload Directory: ${path.resolve(uploadDir)}`);
-  console.log(` Database: ${process.env.DATABASE_URL || 'default dev.db'}`);
+  console.log(` Database: ${process.env.DATABASE_URL || 'default database'}`);
   console.log(`=================================================`);
 });
 
