@@ -8,8 +8,9 @@
     "start": "node app.js",
     "dev": "node --watch app.js",
     "prisma:generate": "npx prisma generate",
-    "prisma:migrate": "npx prisma migrate dev",
-    "db:seed": "node seed.js"
+    "db:push": "npx prisma db push",
+    "db:seed": "node seed.js",
+    "db:setup": "npx prisma generate && npx prisma db push && node seed.js"
   },
   "dependencies": {
     "@prisma/client": "^6.3.1",

@@ -113,8 +113,8 @@ app.use(errorHandler);
 // Initialize Cron Reminders
 initCronJobs();
 
-// Auto-seed database on server start
-seedDatabase().catch((err) => console.error('Startup seeding failed:', err));
+// Safe, non-destructive startup check (only seeds if database is completely empty)
+seedDatabase({ isCli: false }).catch((err) => console.error('[STARTUP SEED NOTICE]', err.message));
 
 app.listen(PORT, () => {
   console.log(`=================================================`);

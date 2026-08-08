@@ -1,22 +1,24 @@
 import bcrypt from 'bcryptjs';
-import { execSync } from 'child_process';
 import prisma from './config/db.js';
 
-export async function seedDatabase() {
-  console.log('Ensuring database schema and seeding initial data...');
+export async function seedDatabase(options = {}) {
+  const { isCli = false } = options;
+  console.log('[DB SEED] Checking database initialization status...');
 
   try {
-    // 1. Ensure SQLite database tables exist on disk
-    try {
-      execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit' });
-    } catch (dbErr) {
-      console.warn('Prisma db push warning:', dbErr.message);
+    // 1. If called on startup and database already contains users, skip completely
+    const userCount = await prisma.user.count();
+    if (!isCli && userCount > 0) {
+      console.log(`[DB SEED] Database already initialized (${userCount} user(s) found). Skipping seed to preserve existing data.`);
+      return;
     }
 
-    // 2. Create Departments
+    console.log('[DB SEED] Ensuring required default records exist (safe & idempotent)...');
+
+    // 2. Default Departments (find-or-create: never overwrites existing records)
     const deptRoad = await prisma.department.upsert({
       where: { code: 'PWD-ROAD' },
-      update: {},
+      update: {}, // Never overwrite existing department data
       create: {
         name: 'Public Works Department (Roads)',
         code: 'PWD-ROAD',
@@ -44,119 +46,129 @@ export async function seedDatabase() {
       },
     });
 
-    // Default Passwords
+    // 3. Default Passwords (only for newly created seed accounts)
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash('Admin@123', salt);
 
-    // 1. State Administrator
-    const admin = await prisma.user.upsert({
-      where: { email: 'admin@gov.in' },
-      update: {
-        passwordHash,
-        active: true,
-      },
-      create: {
-        email: 'admin@gov.in',
-        passwordHash,
-        firstName: 'State',
-        lastName: 'Administrator',
-        role: 'STATE_ADMIN',
-        district: 'State HQ',
-        departmentId: deptRoad.id,
-      },
-    });
+    // 4. State Administrator (idempotent: never overwrites custom user password)
+    const existingAdmin = await prisma.user.findUnique({ where: { email: 'admin@gov.in' } });
+    let admin = existingAdmin;
+    if (!existingAdmin) {
+      admin = await prisma.user.create({
+        data: {
+          email: 'admin@gov.in',
+          passwordHash,
+          firstName: 'State',
+          lastName: 'Administrator',
+          role: 'STATE_ADMIN',
+          district: 'State HQ',
+          departmentId: deptRoad.id,
+          active: true,
+        },
+      });
+      console.log('[DB SEED] Created default State Admin: admin@gov.in / Admin@123');
+    } else {
+      console.log('[DB SEED] Existing State Admin found. Preserving credentials and profile.');
+    }
 
-    // 2. District User
-    const districtUser = await prisma.user.upsert({
-      where: { email: 'district.user@gov.in' },
-      update: {
-        passwordHash,
-        active: true,
-      },
-      create: {
-        email: 'district.user@gov.in',
-        passwordHash,
-        firstName: 'District',
-        lastName: 'Officer',
-        role: 'DISTRICT_USER',
-        district: 'Bhopal',
-        departmentId: deptTransport.id,
-      },
-    });
+    // 5. District User (idempotent: never overwrites custom user password)
+    const existingDistrictUser = await prisma.user.findUnique({ where: { email: 'district.user@gov.in' } });
+    let districtUser = existingDistrictUser;
+    if (!existingDistrictUser) {
+      districtUser = await prisma.user.create({
+        data: {
+          email: 'district.user@gov.in',
+          passwordHash,
+          firstName: 'District',
+          lastName: 'Officer',
+          role: 'DISTRICT_USER',
+          district: 'Bhopal',
+          departmentId: deptTransport.id,
+          active: true,
+        },
+      });
+      console.log('[DB SEED] Created default District User: district.user@gov.in / Admin@123');
+    } else {
+      console.log('[DB SEED] Existing District User found. Preserving credentials and profile.');
+    }
 
-    // 3. Viewer
-    const viewer = await prisma.user.upsert({
-      where: { email: 'viewer@gov.in' },
-      update: {
-        passwordHash,
-        active: true,
-      },
-      create: {
-        email: 'viewer@gov.in',
-        passwordHash,
-        firstName: 'Public',
-        lastName: 'Auditor',
-        role: 'VIEWER',
-        district: 'Bhopal',
-      },
-    });
+    // 6. Viewer (idempotent: never overwrites custom user password)
+    const existingViewer = await prisma.user.findUnique({ where: { email: 'viewer@gov.in' } });
+    if (!existingViewer) {
+      await prisma.user.create({
+        data: {
+          email: 'viewer@gov.in',
+          passwordHash,
+          firstName: 'Public',
+          lastName: 'Auditor',
+          role: 'VIEWER',
+          district: 'Bhopal',
+          active: true,
+        },
+      });
+      console.log('[DB SEED] Created default Viewer: viewer@gov.in / Admin@123');
+    } else {
+      console.log('[DB SEED] Existing Viewer found. Preserving credentials and profile.');
+    }
 
-    console.log('Default Accounts Ready:');
-    console.log('- State Admin: admin@gov.in / Admin@123');
-    console.log('- District User: district.user@gov.in / Admin@123');
-    console.log('- Viewer: viewer@gov.in / Admin@123');
-
-    // Create Sample Meeting
-    const sampleMeeting = await prisma.meeting.upsert({
+    // 7. Sample Initial Meeting (only created if MEET-2026-0001 does not exist)
+    const existingMeeting = await prisma.meeting.findUnique({
       where: { meetingCode: 'MEET-2026-0001' },
-      update: {},
-      create: {
-        meetingCode: 'MEET-2026-0001',
-        title: 'State Road Safety Council Review Meeting',
-        description: 'Quarterly review of accident-prone blackspots and traffic signals upgrade.',
-        meetingType: 'RAJYA_SADAK_SURAKSHA',
-        meetingDate: new Date('2026-08-15T10:00:00Z'),
-        venue: 'State Secretariat Conference Hall A',
-        district: 'Bhopal',
-        status: 'SUBMITTED',
-        creatorId: districtUser.id,
-        participants: {
-          create: [
-            { name: 'Dr. Rajesh Sharma', designation: 'Chief Engineer', department: 'PWD', email: 'rajesh@gov.in' },
-            { name: 'Vikram Singh', designation: 'DCP Traffic', department: 'Police', email: 'vikram@gov.in' },
-          ],
-        },
-        actionItems: {
-          create: [
-            {
-              title: 'Identify top 10 accident blackspots in Bhopal district',
-              description: 'Inspect state highway stretches and submit safety barrier proposal.',
-              assignedDepartmentId: deptRoad.id,
-              targetDate: new Date('2026-08-30T17:00:00Z'),
-              status: 'IN_PROGRESS',
-              remarks: 'Survey 60% complete.',
-            },
-            {
-              title: 'Deploy speed radars near high school zones',
-              description: 'Procure and install automatic speed monitoring cameras.',
-              assignedDepartmentId: deptPolice.id,
-              targetDate: new Date('2026-09-10T17:00:00Z'),
-              status: 'PENDING',
-            },
-          ],
-        },
-      },
     });
 
-    console.log('Sample Meeting Ready:', sampleMeeting.meetingCode);
+    if (!existingMeeting && districtUser) {
+      const sampleMeeting = await prisma.meeting.create({
+        data: {
+          meetingCode: 'MEET-2026-0001',
+          title: 'State Road Safety Council Review Meeting',
+          description: 'Quarterly review of accident-prone blackspots and traffic signals upgrade.',
+          meetingType: 'RAJYA_SADAK_SURAKSHA',
+          meetingDate: new Date('2026-08-15T10:00:00Z'),
+          venue: 'State Secretariat Conference Hall A',
+          district: 'Bhopal',
+          status: 'SUBMITTED',
+          creatorId: districtUser.id,
+          participants: {
+            create: [
+              { name: 'Dr. Rajesh Sharma', designation: 'Chief Engineer', department: 'PWD', email: 'rajesh@gov.in' },
+              { name: 'Vikram Singh', designation: 'DCP Traffic', department: 'Police', email: 'vikram@gov.in' },
+            ],
+          },
+          actionItems: {
+            create: [
+              {
+                title: 'Identify top 10 accident blackspots in Bhopal district',
+                description: 'Inspect state highway stretches and submit safety barrier proposal.',
+                assignedDepartmentId: deptRoad.id,
+                targetDate: new Date('2026-08-30T17:00:00Z'),
+                status: 'IN_PROGRESS',
+                remarks: 'Survey 60% complete.',
+              },
+              {
+                title: 'Deploy speed radars near high school zones',
+                description: 'Procure and install automatic speed monitoring cameras.',
+                assignedDepartmentId: deptPolice.id,
+                targetDate: new Date('2026-09-10T17:00:00Z'),
+                status: 'PENDING',
+              },
+            ],
+          },
+        },
+      });
+      console.log('[DB SEED] Sample meeting created:', sampleMeeting.meetingCode);
+    } else if (existingMeeting) {
+      console.log('[DB SEED] Meeting MEET-2026-0001 already exists. Preserving current meeting state.');
+    }
+
+    console.log('[DB SEED] Safe seed verification finished successfully.');
   } catch (err) {
-    console.error('Database seeding error:', err.message);
+    console.error('[DB SEED ERROR] Non-fatal seed error:', err.message);
   }
 }
 
-// Auto-run if executed directly via CLI
+// Auto-run when executed directly via CLI: node seed.js
 if (process.argv[1] && process.argv[1].endsWith('seed.js')) {
-  seedDatabase().finally(async () => {
+  seedDatabase({ isCli: true }).finally(async () => {
     await prisma.$disconnect();
   });
 }

@@ -1,19 +1,25 @@
 ================================================================================
           ENTERPRISE MEETING MANAGEMENT & COMPLIANCE SYSTEM
-                COMPLETE CLOUD DEPLOYMENT GUIDE (RENDER + VERCEL)
+                COMPLETE CLOUD DEPLOYMENT & PERSISTENCE GUIDE
 ================================================================================
 
-1. DEPLOYMENT OVERVIEW
+1. DEPLOYMENT & DATABASE PERSISTENCE ARCHITECTURE
 --------------------------------------------------------------------------------
-This guide outlines production deployment for both components:
-  - Backend API (/server): Deployed to Render / Railway / VPS / Docker
-  - Frontend SPA (/client): Deployed to Vercel (or Netlify / Cloudflare Pages)
+The backend is built with Express.js, Prisma ORM, and JWT authentication.
+To guarantee that user data, meetings, documents, and modified passwords are
+NEVER deleted or overwritten during redeployments or server restarts:
+
+  - Database setup is separated into:
+      a) First-time initialization (runs schema push and initial default seed).
+      b) Normal production startup (preserves 100% of existing data).
+  - The seed script (seed.js) is 100% idempotent:
+      - It NEVER drops, truncates, or resets existing tables.
+      - It NEVER overwrites existing user passwords, custom accounts, or meetings.
+      - If existing records are found, it skips them safely.
 
 
-2. BACKEND CLOUD DEPLOYMENT ON RENDER (RECOMMENDED)
+2. BACKEND CLOUD DEPLOYMENT ON RENDER
 --------------------------------------------------------------------------------
-Render provides automated Node.js Web Service hosting.
-
 Step 1: Push Repository to GitHub
   Ensure your latest changes are pushed to:
   https://github.com/Gunjan-Kosta/meeting-management
@@ -25,108 +31,69 @@ Step 2: Create a New Web Service on Render
        - Name: meeting-management-backend
        - Root Directory: server
        - Environment: Node
-       - Build Command: npm install && npx prisma db push && node seed.js
+       - Build Command: npm install && npx prisma generate
        - Start Command: npm start
 
   4. Environment Variables:
        - JWT_SECRET: (Use a secure key, e.g. gov_meeting_mgmt_prod_jwt_secret_983f21a47b0e56c1d42890ef)
        - JWT_EXPIRES_IN: 24h
        - NODE_ENV: production
-       - DATABASE_URL: file:./dev.db
-       - FRONTEND_URL: https://your-app-name.vercel.app (Set your Vercel URL once created)
+       - DATABASE_URL: file:./dev.db (or your PostgreSQL / MySQL connection string)
+       - FRONTEND_URL: https://your-app-name.vercel.app
 
-  5. Click 'Create Web Service'.
-     Render will assign a live API domain (e.g. https://meeting-management-backend.onrender.com).
+  5. First-Time Setup on Render:
+     For a brand-new database instance, open the Render 'Shell' tab or run once:
+       npm run db:setup
 
 
-3. FRONTEND DEPLOYMENT ON VERCEL (STEP-BY-STEP)
+3. PRODUCTION DATABASE PERSISTENCE OPTIONS
 --------------------------------------------------------------------------------
-Vercel is optimized for React and Vite single-page applications.
+OPTION A: MANAGED POSTGRESQL / MYSQL (SUPABASE, NEON, RAILWAY, AWS RDS, RENDER PG)
+  For enterprise multi-server production persistence:
+  1. Create a free PostgreSQL or MySQL instance (e.g. Supabase, Render PostgreSQL).
+  2. In your cloud console, set DATABASE_URL to your remote connection string:
+     DATABASE_URL="postgresql://postgres:password@db.supabase.co:5432/postgres"
+  3. Change datasource in server/prisma/schema.prisma (if using postgresql/mysql):
+     datasource db {
+       provider = "postgresql" // or "mysql"
+       url      = env("DATABASE_URL")
+     }
+  4. Run: npx prisma db push
 
-Step 1: SPA Rewrites Configuration (Pre-configured)
-  The file `client/vercel.json` is already included in your repository to prevent
-  404 errors on page refresh:
-  {
-    "rewrites": [
-      { "source": "/(.*)", "destination": "/index.html" }
-    ]
-  }
+OPTION B: SQLITE WITH RENDER PERSISTENT DISK
+  If using SQLite on Render Web Services:
+  1. In Render Dashboard -> Disks -> 'Add Disk'.
+  2. Mount path: /var/data (Size: 1GB+).
+  3. Set Environment Variable: DATABASE_URL="file:/var/data/dev.db"
+  4. All SQLite records will persist permanently across all container redeploys.
 
-Step 2: Import Repository in Vercel
+
+4. FRONTEND DEPLOYMENT ON VERCEL (STEP-BY-STEP)
+--------------------------------------------------------------------------------
+Step 1: Import Repository in Vercel
   1. Log into Vercel (https://vercel.com) and click 'Add New' -> 'Project'.
   2. Import your GitHub repository: Gunjan-Kosta/meeting-management.
 
-Step 3: Configure Build & Directory Settings
-  1. In the 'Project Settings' section:
-       - Framework Preset: Vite
-       - Root Directory: Click 'Edit' and select 'client'
-       - Build Command: npm run build
-       - Output Directory: dist
-       - Install Command: npm install
+Step 2: Configure Build Settings
+  - Framework Preset: Vite
+  - Root Directory: client
+  - Build Command: npm run build
+  - Output Directory: dist
+  - Install Command: npm install
 
-Step 4: Environment Variables Setup
-  1. Expand the 'Environment Variables' section on Vercel.
-  2. Add the following key-value pair:
-       - Key: VITE_API_BASE_URL
-       - Value: https://meeting-management-backend.onrender.com/api
-         (Replace with your actual live Render backend URL, appending /api)
-
-Step 5: Deploy & Verify
-  1. Click 'Deploy'.
-  2. Vercel will build your React application and generate a live URL 
-     (e.g. https://meeting-management-client.vercel.app).
-  3. Open your live Vercel URL in your browser and sign in using the demo accounts.
+Step 3: Environment Variables
+  - Key: VITE_API_BASE_URL
+  - Value: https://meeting-management-backend-28xq.onrender.com/api
+    (Set to your live Render backend URL)
 
 
-4. OTHER BACKEND DEPLOYMENT OPTIONS
+5. SAFE RE-SEEDING COMMANDS (FOR FRESH DATABASES)
 --------------------------------------------------------------------------------
+To manually initialize or seed a fresh database at any time:
+  cd server
+  npm run db:seed
 
-OPTION A: RAILWAY.APP
-  1. Create New Project on Railway -> Deploy from GitHub repo.
-  2. Set Root Directory: /server
-  3. Build Command: npm install && npx prisma db push && node seed.js
-  4. Start Command: npm start
-  5. Add Environment Variables: JWT_SECRET, NODE_ENV=production, PORT
-
-OPTION B: LINUX VPS (AWS EC2 / DIGITALOCEAN)
-  1. Connect via SSH: ssh ubuntu@your-server-ip
-  2. Install Node v18+, PM2, and Nginx:
-     curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-     sudo apt-get install -y nodejs git nginx && sudo npm install -g pm2
-  3. Clone & Build:
-     git clone https://github.com/Gunjan-Kosta/meeting-management.git
-     cd meeting-management/server && npm install && npx prisma db push && node seed.js
-  4. Start PM2: pm2 start app.js --name meeting-backend && pm2 save
-
-OPTION C: DOCKER CONTAINER
-  1. Dockerfile in /server:
-     FROM node:18-alpine
-     WORKDIR /app
-     COPY package*.json ./
-     RUN npm install
-     COPY . .
-     RUN npx prisma generate && npx prisma db push
-     EXPOSE 5000
-     CMD ["npm", "start"]
-  2. Build & Run:
-     docker build -t meeting-backend ./server
-     docker run -d -p 5000:5000 --name meeting-api meeting-backend
-
-
-5. DEMO LOGIN CREDENTIALS
---------------------------------------------------------------------------------
-Seeded test accounts available on your live portal:
-
-  1. State Administrator:
-     Email: admin@gov.in
-     Password: Admin@123
-
-  2. District Officer:
-     Email: district.user@gov.in
-     Password: Admin@123
-
-  3. Public Auditor:
-     Email: viewer@gov.in
-     Password: Admin@123
+The seed script is safe and non-destructive: it will verify existing accounts
+and preserve all existing meetings, users, and audit records.
 
 ================================================================================
