@@ -10,6 +10,7 @@ import {
   ArrowLeft,
   Calendar,
   MapPin,
+  Tag,
   User,
   FileText,
   Upload,
@@ -21,10 +22,8 @@ import {
   Clock,
   Building2,
   X,
-  FileCode,
-  Image as ImageIcon,
   ExternalLink,
-  Lock,
+  Send,
 } from 'lucide-react';
 
 export default function MeetingDetail() {
@@ -89,6 +88,21 @@ export default function MeetingDetail() {
     fetchMeetingDetails();
     fetchDepartments();
   }, [id]);
+
+  const handleSubmitMeeting = async () => {
+    try {
+      await API.patch(`/meetings/${id}/submit`);
+      toast.success('Meeting record submitted successfully.');
+      fetchMeetingDetails();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to submit meeting record.');
+    }
+  };
+
+  const handleOpenUploadModal = (category = 'MOM') => {
+    setDocCategory(category);
+    setShowUploadModal(true);
+  };
 
   const handleUploadDocument = async (e) => {
     e.preventDefault();
@@ -182,60 +196,81 @@ export default function MeetingDetail() {
   if (loading) return <LoadingSkeleton type="form" count={6} />;
   if (!meeting) return null;
 
+  // Categorized Document Groupings
+  const docCategories = [
+    { key: 'MOM', name: 'MoM', badge: 'REQUIRED FOR SUBMISSION', badgeColor: 'bg-amber-900/60 text-amber-300 border-amber-700/50' },
+    { key: 'ATTENDANCE', name: 'Attendance sheet (optional)', badge: 'OPTIONAL', badgeColor: 'bg-slate-800 text-slate-400 border-slate-700' },
+    { key: 'AGENDA', name: 'Agenda Document', badge: 'OPTIONAL', badgeColor: 'bg-slate-800 text-slate-400 border-slate-700' },
+    { key: 'PROCEEDINGS', name: 'Proceedings & Annexures', badge: 'OPTIONAL', badgeColor: 'bg-slate-800 text-slate-400 border-slate-700' },
+  ];
+
   return (
     <div className="space-y-6">
-      {/* Top Banner & Navigation */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center space-x-3">
+      {/* 1. TOP HEADER BANNER CARD */}
+      <div className="bg-slate-900/90 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-start space-x-3.5 min-w-0">
           <button
             onClick={() => navigate('/meetings')}
-            className="p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer shrink-0"
+            className="p-2.5 text-slate-400 hover:text-white bg-slate-800/80 rounded-xl border border-slate-700/80 cursor-pointer shrink-0 transition-colors"
+            title="Back to Meetings"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="min-w-0">
-            <div className="flex items-center space-x-2">
-              <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded">
+          <div className="space-y-1.5 min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="font-mono text-xs font-bold text-blue-400 bg-blue-950/80 px-2.5 py-0.5 rounded-md border border-blue-800/60">
                 {meeting.meetingCode}
               </span>
               <Badge status={meeting.status} />
             </div>
-            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight mt-1 line-clamp-2">
+            <h1 className="text-xl sm:text-2xl font-bold text-white tracking-tight leading-snug truncate">
               {meeting.title}
             </h1>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 font-mono">
+              <div className="flex items-center space-x-1.5">
+                <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span>{new Date(meeting.meetingDate).toLocaleDateString()}, {meeting.meetingTime || '10:28:00 PM'}</span>
+              </div>
+              <div className="flex items-center space-x-1.5 font-sans">
+                <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span>{meeting.venue}, {meeting.district}</span>
+              </div>
+              <div className="flex items-center space-x-1.5 font-sans">
+                <Tag className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                <span>{meeting.meetingType?.replace(/_/g, ' ')}</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center space-x-2 shrink-0">
-          {canUploadMom(meeting.status) && (
-            <button
-              onClick={() => setShowUploadModal(true)}
-              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs sm:text-sm rounded-lg shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer"
-            >
-              <Upload className="w-4 h-4" />
-              <span>Upload Document / MoM</span>
-            </button>
-          )}
-        </div>
+        {/* Right Header Action Button */}
+        {canSubmitMeeting(meeting.status) && (
+          <button
+            onClick={handleSubmitMeeting}
+            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-lg shadow-blue-600/30 flex items-center space-x-2 transition-all cursor-pointer shrink-0 self-stretch sm:self-auto justify-center"
+          >
+            <Send className="w-4 h-4" />
+            <span>Submit Record</span>
+          </button>
+        )}
       </div>
 
-      {/* Tabs Menu Bar */}
-      <div className="border-b border-slate-200 dark:border-slate-700 overflow-x-auto scrollbar-none">
-        <nav className="flex space-x-4 sm:space-x-8 min-w-max pb-1">
+      {/* 2. TABS BAR */}
+      <div className="border-b border-slate-800">
+        <nav className="flex space-x-6 overflow-x-auto scrollbar-none text-xs sm:text-sm font-medium">
           {[
-            { id: 'overview', label: 'Meeting Overview' },
-            { id: 'documents', label: `Official Documents (${meeting.documents?.length || 0})` },
-            { id: 'actions', label: `Action Items (${meeting.actionItems?.length || 0})` },
+            { id: 'overview', label: 'Overview & Agendas' },
+            { id: 'documents', label: `Documents (${meeting.documents?.length || 0})` },
+            { id: 'actions', label: `Action Tracker (${meeting.actionItems?.length || 0})` },
             { id: 'participants', label: `Participants (${meeting.participants?.length || 0})` },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`py-3 px-1 border-b-2 font-semibold text-xs sm:text-sm transition-all cursor-pointer ${
+              className={`py-3 px-1 border-b-2 font-semibold transition-all cursor-pointer whitespace-nowrap ${
                 activeTab === tab.id
-                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                  ? 'border-blue-500 text-blue-400'
+                  : 'border-transparent text-slate-400 hover:text-slate-200'
               }`}
             >
               {tab.label}
@@ -244,153 +279,163 @@ export default function MeetingDetail() {
         </nav>
       </div>
 
-      {/* TAB 1: OVERVIEW */}
+      {/* TAB 1: OVERVIEW & AGENDAS */}
       {activeTab === 'overview' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Agenda & Key Topics</h3>
-              <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
-                {meeting.agenda || 'No agenda detailed.'}
-              </p>
-            </div>
-
-            <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Overview Description</h3>
-              <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                {meeting.description || 'No overview description provided.'}
-              </p>
-            </div>
+        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-6">
+          <div>
+            <h3 className="text-sm sm:text-base font-bold text-white mb-2">Meeting Description & Agendas</h3>
+            <p className="text-xs sm:text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
+              {meeting.description || meeting.agenda || 'No description or agenda detailed.'}
+            </p>
           </div>
 
-          {/* Side Info Cards */}
-          <div className="space-y-6">
-            <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Meeting Metadata</h3>
-              <div className="space-y-3 text-xs sm:text-sm">
-                <div className="flex items-center space-x-3">
-                  <Calendar className="w-4 h-4 text-blue-500 shrink-0" />
-                  <div>
-                    <p className="text-[11px] text-slate-400">Date & Time</p>
-                    <p className="font-semibold text-slate-800 dark:text-slate-100">
-                      {new Date(meeting.meetingDate).toLocaleDateString()} {meeting.meetingTime ? `at ${meeting.meetingTime}` : ''}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-3">
-                  <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
-                  <div>
-                    <p className="text-[11px] text-slate-400">Venue</p>
-                    <p className="font-semibold text-slate-800 dark:text-slate-100">{meeting.venue}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-3">
-                  <User className="w-4 h-4 text-purple-500 shrink-0" />
-                  <div>
-                    <p className="text-[11px] text-slate-400">Chairperson</p>
-                    <p className="font-semibold text-slate-800 dark:text-slate-100">{meeting.chairperson || 'Not specified'}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center space-x-3">
-                  <Building2 className="w-4 h-4 text-amber-500 shrink-0" />
-                  <div>
-                    <p className="text-[11px] text-slate-400">District Scope</p>
-                    <p className="font-semibold text-slate-800 dark:text-slate-100">{meeting.district}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 2: DOCUMENTS */}
-      {activeTab === 'documents' && (
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="pt-4 border-t border-slate-800/80 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
             <div>
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Uploaded Documents & MoM</h3>
-              <p className="text-xs text-slate-500">Official PDFs, Office docs, and images associated with this meeting.</p>
+              <p className="text-slate-500 font-medium">Record Creator</p>
+              <p className="font-semibold text-slate-200 mt-0.5">
+                {meeting.creator ? `${meeting.creator.firstName} ${meeting.creator.lastName} (${meeting.creator.email})` : 'State Administrator (admin@gov.in)'}
+              </p>
             </div>
-            {canUploadMom(meeting.status) && (
-              <button
-                onClick={() => setShowUploadModal(true)}
-                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg flex items-center justify-center space-x-1.5 cursor-pointer"
-              >
-                <Upload className="w-4 h-4" />
-                <span>Upload New Document</span>
-              </button>
-            )}
+            <div>
+              <p className="text-slate-500 font-medium">Creation Timestamp</p>
+              <p className="font-semibold text-slate-200 font-mono mt-0.5">
+                {new Date(meeting.createdAt).toLocaleString()}
+              </p>
+            </div>
+            <div>
+              <p className="text-slate-500 font-medium">Last Modification</p>
+              <p className="font-semibold text-slate-200 font-mono mt-0.5">
+                {new Date(meeting.updatedAt || meeting.createdAt).toLocaleString()}
+              </p>
+            </div>
           </div>
-
-          {meeting.documents?.length === 0 ? (
-            <div className="bg-white dark:bg-slate-800 p-8 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
-              <FileText className="w-10 h-10 text-slate-400 mx-auto mb-2" />
-              <p className="text-xs sm:text-sm text-slate-500">No documents or MoM uploaded for this meeting yet.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              {meeting.documents.map((doc) => (
-                <div
-                  key={doc.id}
-                  className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs flex flex-col justify-between space-y-3"
-                >
-                  <div className="flex items-start space-x-3">
-                    <div className="p-2.5 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 rounded-lg shrink-0">
-                      <FileText className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <span className="inline-block px-2 py-0.5 text-[9px] font-bold uppercase bg-blue-100 text-blue-800 rounded">
-                        {doc.category}
-                      </span>
-                      <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mt-1 truncate">
-                        {doc.title || doc.fileName}
-                      </h4>
-                      <p className="text-[10px] text-slate-500 truncate">{doc.fileName}</p>
-                    </div>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-xs">
-                    <span className="text-[10px] text-slate-400">
-                      {(doc.fileSize / 1024).toFixed(1)} KB
-                    </span>
-                    <div className="flex items-center space-x-1">
-                      <button
-                        onClick={() => setPreviewDoc(doc)}
-                        className="p-1.5 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
-                        title="Preview Document"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <a
-                        href={doc.fileUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="p-1.5 text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
-                        title="Download Document"
-                      >
-                        <Download className="w-4 h-4" />
-                      </a>
-                      <button
-                        onClick={() => setDeleteDocId(doc.id)}
-                        className="p-1.5 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
-                        title="Delete Document"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
 
-      {/* TAB 3: ACTION ITEMS */}
+      {/* TAB 2: DOCUMENTS (CATEGORIZED VIEW) */}
+      {activeTab === 'documents' && (
+        <div className="space-y-5">
+          {/* Top Banner Card */}
+          <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 shadow-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div>
+              <div className="flex items-center space-x-2">
+                <FileText className="w-5 h-5 text-blue-400" />
+                <h3 className="text-sm sm:text-base font-bold text-white">Document Submissions</h3>
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                Official MoM, Attendance Sheet, Agenda, Proceedings & Supporting documents (PDF, DOCX, XLSX up to 10MB each).
+              </p>
+            </div>
+
+            <div className="flex items-center space-x-3 shrink-0 self-start sm:self-auto">
+              <span className="px-3 py-1.5 bg-slate-800 border border-slate-700 text-blue-400 text-xs font-mono font-bold rounded-lg">
+                {meeting.documents?.length || 0} / 10 Documents Submitted
+              </span>
+              {canUploadMom(meeting.status) && (
+                <button
+                  onClick={() => handleOpenUploadModal('MOM')}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs rounded-xl shadow-lg shadow-blue-600/30 flex items-center space-x-1.5 cursor-pointer"
+                >
+                  <Upload className="w-4 h-4" />
+                  <span>Upload Document</span>
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Categorized Document Groups */}
+          <div className="space-y-4">
+            {docCategories.map((cat) => {
+              const catDocs = (meeting.documents || []).filter((d) => d.category === cat.key || (cat.key === 'MOM' && !d.category));
+              return (
+                <div
+                  key={cat.key}
+                  className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 space-y-3.5 shadow-md"
+                >
+                  {/* Category Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2.5">
+                      <h4 className="text-xs sm:text-sm font-bold text-white">{cat.name}</h4>
+                      <span className={`px-2 py-0.5 text-[10px] font-mono font-bold rounded border ${cat.badgeColor}`}>
+                        {cat.badge}
+                      </span>
+                      <span className="text-xs text-slate-500">({catDocs.length} file{catDocs.length !== 1 ? 's' : ''})</span>
+                    </div>
+
+                    {canUploadMom(meeting.status) && (
+                      <button
+                        onClick={() => handleOpenUploadModal(cat.key)}
+                        className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-blue-400 hover:text-white border border-slate-700 text-xs font-semibold rounded-lg flex items-center space-x-1 transition-colors cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>Upload</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Documents List inside Category */}
+                  {catDocs.length === 0 ? (
+                    <div className="py-4 text-center border border-dashed border-slate-800/80 rounded-xl text-slate-500 text-xs">
+                      No {cat.name} uploaded yet.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {catDocs.map((doc) => (
+                        <div
+                          key={doc.id}
+                          className="bg-slate-800/80 border border-slate-700/80 rounded-xl p-3.5 flex items-center justify-between gap-3 group hover:border-blue-500/50 transition-colors"
+                        >
+                          <div className="flex items-center space-x-3 min-w-0">
+                            <div className="p-2 bg-blue-600/20 border border-blue-500/30 text-blue-400 rounded-lg shrink-0">
+                              <FileText className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-white truncate group-hover:text-blue-300 transition-colors">
+                                {doc.title || doc.fileName}
+                              </p>
+                              <p className="text-[10px] font-mono text-slate-400">
+                                {(doc.fileSize / (1024 * 1024)).toFixed(2)} MB • Uploaded {new Date(doc.createdAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-1 shrink-0">
+                            <button
+                              onClick={() => setPreviewDoc(doc)}
+                              className="p-1.5 text-slate-400 hover:text-blue-400 rounded-lg hover:bg-slate-700 cursor-pointer"
+                              title="Preview Document"
+                            >
+                              <Eye className="w-4 h-4" />
+                            </button>
+                            <a
+                              href={doc.fileUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-slate-700 cursor-pointer"
+                              title="Download File"
+                            >
+                              <Download className="w-4 h-4" />
+                            </a>
+                            <button
+                              onClick={() => setDeleteDocId(doc.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700 cursor-pointer"
+                              title="Delete File"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: ACTION TRACKER */}
       {activeTab === 'actions' && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -485,7 +530,7 @@ export default function MeetingDetail() {
       {previewDoc && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs">
           <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-700 w-[calc(100%-1.5rem)] max-w-5xl h-[88vh] flex flex-col overflow-hidden shadow-2xl">
-            <div className="px-4 py-3 bg-slate-900 text-white flex items-center justify-between shrink-0">
+            <div className="px-4 py-3 bg-slate-900 text-white flex items-center justify-between shrink-0 border-b border-slate-800">
               <div className="flex items-center space-x-2 min-w-0">
                 <FileText className="w-5 h-5 text-blue-400 shrink-0" />
                 <h3 className="text-xs sm:text-sm font-bold truncate">{previewDoc.title || previewDoc.fileName}</h3>
@@ -535,10 +580,9 @@ export default function MeetingDetail() {
                   className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
                 >
                   <option value="MOM">Minutes of Meeting (MoM)</option>
-                  <option value="AGENDA">Official Agenda Document</option>
                   <option value="ATTENDANCE">Attendance Sheet</option>
-                  <option value="PRESENTATION">Presentation Deck</option>
-                  <option value="PHOTO">Event Photo / Media</option>
+                  <option value="AGENDA">Official Agenda Document</option>
+                  <option value="PROCEEDINGS">Proceedings & Annexures</option>
                   <option value="OTHER">Other Annexure Document</option>
                 </select>
               </div>
