@@ -128,22 +128,22 @@ export default function AuditLogs() {
       {/* Top Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center space-x-2.5">
-            <Activity className="w-6 h-6 text-blue-500" />
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight flex items-center space-x-2.5">
+            <Activity className="w-6 h-6 text-blue-500 shrink-0" />
             <span>System Audit Trail</span>
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
             Real-time visual activity feed of user logins, meeting records, document submissions, and compliance tracking.
           </p>
         </div>
 
         {/* View Mode Switcher */}
-        <div className="flex items-center space-x-2 bg-slate-900/80 p-1 rounded-xl border border-slate-800 self-start sm:self-auto">
+        <div className="flex items-center space-x-2 bg-slate-900/80 p-1 rounded-xl border border-slate-800 self-start sm:self-auto shrink-0">
           <button
             onClick={() => setViewMode('kanban')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer ${
               viewMode === 'kanban'
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-xs'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -154,7 +154,7 @@ export default function AuditLogs() {
             onClick={() => setViewMode('table')}
             className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center space-x-1.5 transition-all cursor-pointer ${
               viewMode === 'table'
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-blue-600 text-white shadow-xs'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -167,7 +167,7 @@ export default function AuditLogs() {
       {/* Filter and Search Bar */}
       <div className="bg-white dark:bg-slate-800/90 p-4 rounded-xl border border-slate-200 dark:border-slate-700/80 shadow-xs flex flex-wrap gap-4 items-center justify-between">
         <div className="flex flex-wrap items-center gap-3 flex-1">
-          <div className="relative flex-1 min-w-[240px]">
+          <div className="relative flex-1 min-w-[200px] sm:min-w-[240px]">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
             <input
               type="text"
@@ -181,7 +181,7 @@ export default function AuditLogs() {
           <select
             value={actionFilter}
             onChange={(e) => setActionFilter(e.target.value)}
-            className="px-3 py-2 text-xs bg-slate-50 dark:bg-slate-900/60 text-slate-800 dark:text-slate-200 rounded-lg border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500"
+            className="w-full sm:w-auto px-3 py-2 text-xs bg-slate-50 dark:bg-slate-900/60 text-slate-800 dark:text-slate-200 rounded-lg border border-slate-200 dark:border-slate-700 focus:ring-2 focus:ring-blue-500"
           >
             <option value="">All Action Types</option>
             <option value="USER_LOGIN">User Login</option>
@@ -196,7 +196,7 @@ export default function AuditLogs() {
         </div>
 
         <span className="text-xs font-medium text-slate-400">
-          Showing <strong className="text-white">{filteredLogs.length}</strong> recorded event{filteredLogs.length !== 1 ? 's' : ''}
+          Showing <strong className="text-slate-900 dark:text-white">{filteredLogs.length}</strong> recorded event{filteredLogs.length !== 1 ? 's' : ''}
         </span>
       </div>
 
@@ -239,7 +239,7 @@ export default function AuditLogs() {
                     colLogs.map((log) => (
                       <div
                         key={log.id}
-                        className="bg-slate-800/90 hover:bg-slate-800 border border-slate-700/70 hover:border-blue-500/50 rounded-xl p-3.5 space-y-2.5 transition-all shadow-sm hover:shadow-md group"
+                        className="bg-slate-800/90 hover:bg-slate-800 border border-slate-700/70 hover:border-blue-500/50 rounded-xl p-3.5 space-y-2.5 transition-all shadow-xs hover:shadow-md group"
                       >
                         {/* Card Top: Action Badge & Time */}
                         <div className="flex items-center justify-between gap-2">
@@ -282,42 +282,44 @@ export default function AuditLogs() {
           })}
         </div>
       ) : (
-        /* TABLE VIEW (ALTERNATIVE) */
+        /* TABLE VIEW (RESPONSIVE HORIZONTAL SCROLL) */
         <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs overflow-hidden">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 dark:bg-slate-700/50 text-xs font-bold text-slate-500 uppercase border-b border-slate-200 dark:border-slate-700">
-                <th className="py-3.5 px-4">Timestamp</th>
-                <th className="py-3.5 px-4">User</th>
-                <th className="py-3.5 px-4">Action</th>
-                <th className="py-3.5 px-4">Details</th>
-                <th className="py-3.5 px-4">IP Address</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-700 text-xs font-mono">
-              {filteredLogs.map((log) => (
-                <tr key={log.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/40">
-                  <td className="py-3 px-4 text-slate-500 whitespace-nowrap">
-                    {new Date(log.createdAt).toLocaleString()}
-                  </td>
-                  <td className="py-3 px-4 font-sans font-semibold text-slate-900 dark:text-white">
-                    {log.user ? `${log.user.firstName} ${log.user.lastName}` : 'System'}
-                  </td>
-                  <td className="py-3 px-4">
-                    <span className={`px-2 py-0.5 rounded font-bold border ${getActionBadgeColor(log.action)}`}>
-                      {log.action}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 font-sans text-slate-700 dark:text-slate-300">
-                    {log.details}
-                  </td>
-                  <td className="py-3 px-4 text-slate-400">
-                    {log.ipAddress || '::1'}
-                  </td>
+          <div className="overflow-x-auto scrollbar-thin">
+            <table className="w-full text-left border-collapse min-w-[750px]">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-700/50 text-xs font-bold text-slate-500 uppercase border-b border-slate-200 dark:border-slate-700">
+                  <th className="py-3.5 px-4 whitespace-nowrap min-w-[170px]">Timestamp</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap min-w-[150px]">User</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap min-w-[160px]">Action</th>
+                  <th className="py-3.5 px-4 min-w-[220px]">Details</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap min-w-[100px]">IP Address</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700 text-xs font-mono">
+                {filteredLogs.map((log) => (
+                  <tr key={log.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-700/40">
+                    <td className="py-3.5 px-4 text-slate-500 whitespace-nowrap">
+                      {new Date(log.createdAt).toLocaleString()}
+                    </td>
+                    <td className="py-3.5 px-4 font-sans font-semibold text-slate-900 dark:text-white whitespace-nowrap">
+                      {log.user ? `${log.user.firstName} ${log.user.lastName}` : 'System'}
+                    </td>
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <span className={`px-2 py-0.5 rounded font-bold border ${getActionBadgeColor(log.action)}`}>
+                        {log.action}
+                      </span>
+                    </td>
+                    <td className="py-3.5 px-4 font-sans text-slate-700 dark:text-slate-300">
+                      {log.details}
+                    </td>
+                    <td className="py-3.5 px-4 text-slate-400 whitespace-nowrap">
+                      {log.ipAddress || '::1'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
