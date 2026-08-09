@@ -10,71 +10,59 @@ import {
   ArrowLeft,
   Calendar,
   MapPin,
-  Building,
-  UploadCloud,
+  User,
   FileText,
-  Trash2,
+  Upload,
   Download,
   Eye,
-  ExternalLink,
+  Trash2,
   Plus,
-  Send,
-  CheckCircle,
+  CheckCircle2,
   Clock,
-  UserCheck,
-  Tag,
+  Building2,
   X,
+  FileCode,
   Image as ImageIcon,
+  ExternalLink,
+  Lock,
 } from 'lucide-react';
 
 export default function MeetingDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { canEditMeeting, canSubmitMeeting, canCloseMeeting, canDeleteMeeting, user } = useAuth();
+  const { user, canUploadMom, canAddActionItem, canCloseMeeting, canSubmitMeeting } = useAuth();
 
   const [meeting, setMeeting] = useState(null);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('overview');
 
-  // Tab State
-  const [activeTab, setActiveTab] = useState('overview'); // overview, documents, actions, participants
-
-  // Upload Modal State
+  // Document Upload Modal
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [uploadFiles, setUploadFiles] = useState([]);
   const [docCategory, setDocCategory] = useState('MOM');
+  const [docTitle, setDocTitle] = useState('');
+  const [docFile, setDocFile] = useState(null);
   const [uploading, setUploading] = useState(false);
 
-  // Action Item Modal State
+  // Document Viewer Modal
+  const [previewDoc, setPreviewDoc] = useState(null);
+
+  // Action Item Modal
   const [showActionModal, setShowActionModal] = useState(false);
   const [actionTitle, setActionTitle] = useState('');
   const [actionDesc, setActionDesc] = useState('');
-  const [actionDept, setActionDept] = useState('');
-  const [actionTargetDate, setActionTargetDate] = useState('');
-  const [actionLoading, setActionLoading] = useState(false);
+  const [assignedDeptId, setAssignedDeptId] = useState('');
+  const [targetDate, setTargetDate] = useState('');
+  const [priority, setPriority] = useState('MEDIUM');
+  const [creatingAction, setCreatingAction] = useState(false);
 
-  // Document Viewer Modal State
-  const [previewDoc, setPreviewDoc] = useState(null);
+  // Status Action Remarks Modal
+  const [statusModalAction, setStatusModalAction] = useState(null);
+  const [newStatus, setNewStatus] = useState('IN_PROGRESS');
+  const [remarks, setRemarks] = useState('');
 
-  // Delete document modal
+  // Delete Modals
   const [deleteDocId, setDeleteDocId] = useState(null);
-
-  // Helper to build absolute document URL for cross-origin hosting (Vercel + Render)
-  const getDocUrl = (filePath) => {
-    if (!filePath) return '';
-    if (filePath.startsWith('http://') || filePath.startsWith('https://')) {
-      return filePath;
-    }
-    const apiBase = API.defaults.baseURL || '/api';
-    const backendOrigin = apiBase.replace(/\/api\/?$/, '').replace(/\/+$/, '');
-    return `${backendOrigin}${filePath.startsWith('/') ? '' : '/'}${filePath}`;
-  };
-
-  const isImageFile = (filename) => {
-    if (!filename) return false;
-    const lower = filename.toLowerCase();
-    return lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.png') || lower.endsWith('.webp');
-  };
 
   const fetchMeetingDetails = async () => {
     try {
@@ -92,7 +80,6 @@ export default function MeetingDetail() {
     try {
       const res = await API.get('/departments');
       setDepartments(res.data.data);
-      if (res.data.data.length > 0) setActionDept(res.data.data[0].id);
     } catch (err) {
       console.error(err);
     }
@@ -103,40 +90,31 @@ export default function MeetingDetail() {
     fetchDepartments();
   }, [id]);
 
-  const handleFileUpload = async (e) => {
+  const handleUploadDocument = async (e) => {
     e.preventDefault();
-    if (!uploadFiles || uploadFiles.length === 0) {
-      toast.error('Please select at least one file.');
+    if (!docFile) {
+      toast.error('Please choose a file to upload.');
       return;
     }
-
-    const currentTotal = meeting?.documents?.length || 0;
-    if (currentTotal + uploadFiles.length > 10) {
-      toast.error(`Maximum 10 documents allowed per meeting in total. Current total: ${currentTotal}.`);
-      return;
-    }
-
-    const formData = new FormData();
-    for (const file of uploadFiles) {
-      if (file.size > 10 * 1024 * 1024) {
-        toast.error(`File "${file.name}" exceeds 10 MB size limit.`);
-        return;
-      }
-      formData.append('documents', file);
-    }
-    formData.append('fileType', docCategory);
 
     setUploading(true);
     try {
-      await API.post(`/documents/upload/${id}`, formData, {
+      const formData = new FormData();
+      formData.append('document', docFile);
+      formData.append('category', docCategory);
+      if (docTitle) formData.append('title', docTitle);
+
+      await API.post(`/meetings/${id}/documents`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
       });
-      toast.success('Documents uploaded successfully.');
+
+      toast.success('Document uploaded successfully.');
       setShowUploadModal(false);
-      setUploadFiles([]);
+      setDocFile(null);
+      setDocTitle('');
       fetchMeetingDetails();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to upload documents.');
+      toast.error(err.response?.data?.message || 'Failed to upload document.');
     } finally {
       setUploading(false);
     }
@@ -156,546 +134,433 @@ export default function MeetingDetail() {
 
   const handleCreateActionItem = async (e) => {
     e.preventDefault();
-    if (!actionTitle || !actionDept || !actionTargetDate) {
-      toast.error('Title, Assigned Department, and Target Date are required.');
+    if (!actionTitle || !assignedDeptId || !targetDate) {
+      toast.error('Please complete required action item fields.');
       return;
     }
 
-    setActionLoading(true);
+    setCreatingAction(true);
     try {
-      await API.post('/actions', {
-        meetingId: id,
+      await API.post(`/meetings/${id}/actions`, {
         title: actionTitle,
         description: actionDesc,
-        assignedDepartmentId: actionDept,
-        targetDate: actionTargetDate,
+        assignedDepartmentId: assignedDeptId,
+        targetDate,
+        priority,
       });
-      toast.success('Action item assigned.');
+
+      toast.success('Action item assigned successfully.');
       setShowActionModal(false);
       setActionTitle('');
       setActionDesc('');
       fetchMeetingDetails();
     } catch (err) {
-      toast.error('Failed to add action item.');
+      toast.error(err.response?.data?.message || 'Failed to assign action item.');
     } finally {
-      setActionLoading(false);
+      setCreatingAction(false);
     }
   };
 
-  const handleActionStatusChange = async (actionId, newStatus, currentRemarks) => {
+  const handleUpdateActionStatus = async (e) => {
+    e.preventDefault();
+    if (!statusModalAction) return;
+
     try {
-      await API.put(`/actions/${actionId}`, {
+      await API.put(`/actions/${statusModalAction.id}/status`, {
         status: newStatus,
-        remarks: currentRemarks,
+        remarks,
       });
-      toast.success(`Action status updated to ${newStatus}`);
+      toast.success('Action item status updated.');
+      setStatusModalAction(null);
+      setRemarks('');
       fetchMeetingDetails();
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to update action status.');
+      toast.error(err.response?.data?.message || 'Failed to update action item.');
     }
   };
 
-  if (loading) return <LoadingSkeleton type="form" />;
+  if (loading) return <LoadingSkeleton type="form" count={6} />;
+  if (!meeting) return null;
 
   return (
     <div className="space-y-6">
-      {/* Top Banner */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs">
-        <div className="flex items-start space-x-4">
+      {/* Top Banner & Navigation */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center space-x-3">
           <button
             onClick={() => navigate('/meetings')}
-            className="p-2 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 bg-slate-100 dark:bg-slate-700 rounded-lg"
+            className="p-2 text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer shrink-0"
           >
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div>
+          <div className="min-w-0">
             <div className="flex items-center space-x-2">
-              <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 px-2.5 py-1 rounded">
+              <span className="font-mono text-xs font-bold text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-950 px-2 py-0.5 rounded">
                 {meeting.meetingCode}
               </span>
               <Badge status={meeting.status} />
             </div>
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white mt-1.5">{meeting.title}</h1>
-            <div className="flex flex-wrap items-center gap-4 mt-2 text-xs text-slate-500 dark:text-slate-400">
-              <div className="flex items-center space-x-1">
-                <Calendar className="w-3.5 h-3.5" />
-                <span>{new Date(meeting.meetingDate).toLocaleString()}</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <MapPin className="w-3.5 h-3.5" />
-                <span>{meeting.venue}, {meeting.district}</span>
-              </div>
-              <div className="flex items-center space-x-1">
-                <Tag className="w-3.5 h-3.5" />
-                <span>{meeting.meetingType?.replace(/_/g, ' ')}</span>
-              </div>
-            </div>
+            <h1 className="text-lg sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight mt-1 line-clamp-2">
+              {meeting.title}
+            </h1>
           </div>
         </div>
 
-        {/* Header Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
-          {canSubmitMeeting(meeting.status) && (
+        {/* Action Buttons */}
+        <div className="flex items-center space-x-2 shrink-0">
+          {canUploadMom(meeting.status) && (
             <button
-              onClick={async () => {
-                try {
-                  await API.patch(`/meetings/${id}/submit`);
-                  toast.success('Meeting submitted.');
-                  fetchMeetingDetails();
-                } catch (err) {
-                  toast.error(err.response?.data?.message || 'Failed to submit meeting.');
-                }
-              }}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg shadow transition-all flex items-center space-x-1.5 cursor-pointer"
+              onClick={() => setShowUploadModal(true)}
+              className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs sm:text-sm rounded-lg shadow-xs transition-all flex items-center space-x-1.5 cursor-pointer"
             >
-              <Send className="w-3.5 h-3.5" />
-              <span>Submit Record</span>
-            </button>
-          )}
-
-          {canCloseMeeting && meeting.status === 'SUBMITTED' && (
-            <button
-              onClick={async () => {
-                await API.patch(`/meetings/${id}/close`);
-                toast.success('Meeting CLOSED.');
-                fetchMeetingDetails();
-              }}
-              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-lg shadow transition-all flex items-center space-x-1.5 cursor-pointer"
-            >
-              <CheckCircle className="w-3.5 h-3.5" />
-              <span>Close Meeting</span>
+              <Upload className="w-4 h-4" />
+              <span>Upload Document / MoM</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Tabs Bar */}
-      <div className="flex border-b border-slate-200 dark:border-slate-700 space-x-6">
-        {[
-          { id: 'overview', label: 'Overview & Agendas' },
-          { id: 'documents', label: `Documents (${meeting.documents?.length || 0})` },
-          { id: 'actions', label: `Action Tracker (${meeting.actionItems?.length || 0})` },
-          { id: 'participants', label: `Participants (${meeting.participants?.length || 0})` },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`pb-3 text-sm font-semibold border-b-2 transition-all cursor-pointer ${
-              activeTab === tab.id
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-300'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      {/* Tabs Menu Bar */}
+      <div className="border-b border-slate-200 dark:border-slate-700 overflow-x-auto scrollbar-none">
+        <nav className="flex space-x-4 sm:space-x-8 min-w-max pb-1">
+          {[
+            { id: 'overview', label: 'Meeting Overview' },
+            { id: 'documents', label: `Official Documents (${meeting.documents?.length || 0})` },
+            { id: 'actions', label: `Action Items (${meeting.actionItems?.length || 0})` },
+            { id: 'participants', label: `Participants (${meeting.participants?.length || 0})` },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`py-3 px-1 border-b-2 font-semibold text-xs sm:text-sm transition-all cursor-pointer ${
+                activeTab === tab.id
+                  ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </nav>
       </div>
 
-      {/* Tab 1: Overview */}
+      {/* TAB 1: OVERVIEW */}
       {activeTab === 'overview' && (
-        <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
-          <h3 className="text-base font-bold text-slate-900 dark:text-white">Meeting Description & Agendas</h3>
-          <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-line leading-relaxed">
-            {meeting.description || 'No detailed description provided.'}
-          </p>
-
-          <div className="pt-4 border-t border-slate-100 dark:border-slate-700 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-            <div>
-              <span className="text-slate-400 block">Record Creator</span>
-              <span className="font-semibold text-slate-800 dark:text-slate-200">
-                {meeting.creator?.firstName} {meeting.creator?.lastName} ({meeting.creator?.email})
-              </span>
-            </div>
-            <div>
-              <span className="text-slate-400 block">Creation Timestamp</span>
-              <span className="font-semibold text-slate-800 dark:text-slate-200">{new Date(meeting.createdAt).toLocaleString()}</span>
-            </div>
-            <div>
-              <span className="text-slate-400 block">Last Modification</span>
-              <span className="font-semibold text-slate-800 dark:text-slate-200">{new Date(meeting.updatedAt).toLocaleString()}</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Tab 2: Documents */}
-      {activeTab === 'documents' && (
-        <div className="space-y-6">
-          {/* Document Summary Banner */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs gap-3">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center space-x-2">
-                <FileText className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                <span>Document Submissions</span>
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Official MoM, Attendance Sheet, Agenda, Proceedings & Supporting files (PDF, DOCX, XLSX, JPG, PNG, WEBP up to 10MB each).
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Agenda & Key Topics</h3>
+              <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                {meeting.agenda || 'No agenda detailed.'}
               </p>
             </div>
-            <div className="flex items-center space-x-3">
-              <span className={`px-3 py-1 text-xs font-bold rounded-lg border ${
-                (meeting.documents?.length || 0) >= 10
-                  ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30'
-                  : 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30'
-              }`}>
-                {meeting.documents?.length || 0} / 10 Documents Submitted
-              </span>
-              {user?.role !== 'VIEWER' && (
-                <button
-                  onClick={() => {
-                    if ((meeting.documents?.length || 0) >= 10) {
-                      toast.error('Maximum limit of 10 documents per meeting reached.');
-                      return;
-                    }
-                    setShowUploadModal(true);
-                  }}
-                  disabled={(meeting.documents?.length || 0) >= 10}
-                  className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-medium text-xs rounded-lg flex items-center space-x-1.5 transition-all shadow-xs cursor-pointer"
-                >
-                  <UploadCloud className="w-4 h-4" />
-                  <span>Upload Document</span>
-                </button>
-              )}
+
+            <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Overview Description</h3>
+              <p className="text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                {meeting.description || 'No overview description provided.'}
+              </p>
             </div>
           </div>
 
-          {/* Categorized Document Sections */}
-          {[
-            { key: 'MOM', title: 'MoM', isRequired: true },
-            { key: 'ATTENDANCE_SHEET', title: 'Attendance sheet (optional)', isOptional: true },
-            { key: 'AGENDA', title: 'Agenda Document' },
-            { key: 'PROCEEDINGS', title: 'Proceedings Document' },
-            { key: 'SUPPORTING', title: 'Supporting documents' },
-          ].map((sec) => {
-            const secDocs = meeting.documents?.filter((d) => d.fileType === sec.key) || [];
-            return (
-              <div key={sec.key} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 space-y-4 shadow-xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <h4 className="text-sm font-bold text-slate-900 dark:text-white">{sec.title}</h4>
-                    {sec.isRequired && (
-                      <span className="px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border border-amber-300 dark:border-amber-700/50 rounded">
-                        Required for Submission
-                      </span>
-                    )}
-                    {sec.isOptional && (
-                      <span className="px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-400 border border-slate-300 dark:border-slate-600 rounded">
-                        Optional
-                      </span>
-                    )}
-                    <span className="text-xs text-slate-400 font-medium">({secDocs.length} file{secDocs.length !== 1 ? 's' : ''})</span>
+          {/* Side Info Cards */}
+          <div className="space-y-6">
+            <div className="bg-white dark:bg-slate-800 p-5 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Meeting Metadata</h3>
+              <div className="space-y-3 text-xs sm:text-sm">
+                <div className="flex items-center space-x-3">
+                  <Calendar className="w-4 h-4 text-blue-500 shrink-0" />
+                  <div>
+                    <p className="text-[11px] text-slate-400">Date & Time</p>
+                    <p className="font-semibold text-slate-800 dark:text-slate-100">
+                      {new Date(meeting.meetingDate).toLocaleDateString()} {meeting.meetingTime ? `at ${meeting.meetingTime}` : ''}
+                    </p>
                   </div>
-
-                  {user?.role !== 'VIEWER' && (
-                    <button
-                      onClick={() => {
-                        if ((meeting.documents?.length || 0) >= 10) {
-                          toast.error('Maximum limit of 10 documents per meeting reached.');
-                          return;
-                        }
-                        setDocCategory(sec.key);
-                        setShowUploadModal(true);
-                      }}
-                      disabled={(meeting.documents?.length || 0) >= 10}
-                      className="px-2.5 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/60 border border-blue-200 dark:border-blue-800/50 rounded-lg transition-colors flex items-center space-x-1 disabled:opacity-40 cursor-pointer"
-                    >
-                      <UploadCloud className="w-3.5 h-3.5" />
-                      <span>Upload</span>
-                    </button>
-                  )}
                 </div>
 
-                {secDocs.length === 0 ? (
-                  <div className="p-4 text-center bg-slate-50 dark:bg-slate-700/30 rounded-lg border border-dashed border-slate-200 dark:border-slate-700 text-slate-400 text-xs">
-                    No {sec.title} uploaded yet.
+                <div className="flex items-center space-x-3">
+                  <MapPin className="w-4 h-4 text-emerald-500 shrink-0" />
+                  <div>
+                    <p className="text-[11px] text-slate-400">Venue</p>
+                    <p className="font-semibold text-slate-800 dark:text-slate-100">{meeting.venue}</p>
                   </div>
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {secDocs.map((doc) => {
-                      const isImg = isImageFile(doc.name);
-                      return (
-                        <div key={doc.id} className="p-3.5 bg-slate-50 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600 flex items-center justify-between shadow-xs">
-                          <div
-                            className="flex items-center space-x-3 min-w-0 pr-2 cursor-pointer group"
-                            onClick={() => setPreviewDoc(doc)}
-                          >
-                            <div className={`p-2 rounded-lg shrink-0 group-hover:scale-105 transition-transform ${
-                              isImg
-                                ? 'bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400'
-                                : 'bg-blue-100 dark:bg-blue-950 text-blue-600 dark:text-blue-400'
-                            }`}>
-                              {isImg ? <ImageIcon className="w-4 h-4" /> : <FileText className="w-4 h-4" />}
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-xs font-semibold text-slate-900 dark:text-white truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                                {doc.name}
-                              </p>
-                              <div className="flex items-center space-x-2 text-[10px] text-slate-500 dark:text-slate-400 mt-0.5">
-                                <span>{(doc.fileSize / (1024 * 1024)).toFixed(2)} MB</span>
-                                <span>•</span>
-                                <span>Uploaded {new Date(doc.createdAt).toLocaleDateString()}</span>
-                              </div>
-                            </div>
-                          </div>
+                </div>
 
-                          <div className="flex items-center space-x-2 shrink-0">
-                            {/* Prominent Solid Blue View Document Button */}
-                            <button
-                              type="button"
-                              onClick={() => setPreviewDoc(doc)}
-                              className="px-3 py-1.5 text-xs font-bold text-white bg-blue-600 hover:bg-blue-500 active:bg-blue-700 rounded-lg shadow-xs flex items-center space-x-1.5 cursor-pointer transition-all shrink-0"
-                              title="Preview document directly on website"
-                            >
-                              <Eye className="w-3.5 h-3.5" />
-                              <span>View Document</span>
-                            </button>
-
-                            {/* Download Button */}
-                            <a
-                              href={getDocUrl(doc.filePath)}
-                              target="_blank"
-                              rel="noreferrer"
-                              download
-                              className="p-1.5 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                              title="Download File"
-                            >
-                              <Download className="w-4 h-4" />
-                            </a>
-
-                            {user?.role !== 'VIEWER' && (
-                              <button
-                                type="button"
-                                onClick={() => setDeleteDocId(doc.id)}
-                                className="p-1.5 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors cursor-pointer"
-                                title="Delete File"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
+                <div className="flex items-center space-x-3">
+                  <User className="w-4 h-4 text-purple-500 shrink-0" />
+                  <div>
+                    <p className="text-[11px] text-slate-400">Chairperson</p>
+                    <p className="font-semibold text-slate-800 dark:text-slate-100">{meeting.chairperson || 'Not specified'}</p>
                   </div>
-                )}
+                </div>
+
+                <div className="flex items-center space-x-3">
+                  <Building2 className="w-4 h-4 text-amber-500 shrink-0" />
+                  <div>
+                    <p className="text-[11px] text-slate-400">District Scope</p>
+                    <p className="font-semibold text-slate-800 dark:text-slate-100">{meeting.district}</p>
+                  </div>
+                </div>
               </div>
-            );
-          })}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Tab 3: Action Tracker */}
-      {activeTab === 'actions' && (
+      {/* TAB 2: DOCUMENTS */}
+      {activeTab === 'documents' && (
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-xs text-slate-500">Manage compliance action items assigned to various departments.</p>
-            {user?.role !== 'VIEWER' && (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Uploaded Documents & MoM</h3>
+              <p className="text-xs text-slate-500">Official PDFs, Office docs, and images associated with this meeting.</p>
+            </div>
+            {canUploadMom(meeting.status) && (
               <button
-                onClick={() => setShowActionModal(true)}
-                className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg flex items-center space-x-1.5 cursor-pointer"
+                onClick={() => setShowUploadModal(true)}
+                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg flex items-center justify-center space-x-1.5 cursor-pointer"
               >
-                <Plus className="w-4 h-4" />
-                <span>Add Action Item</span>
+                <Upload className="w-4 h-4" />
+                <span>Upload New Document</span>
               </button>
             )}
           </div>
 
-          <div className="space-y-3">
-            {meeting.actionItems?.length === 0 ? (
-              <div className="p-8 text-center bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-400 text-xs">
-                No action items created for this meeting yet.
-              </div>
-            ) : (
-              meeting.actionItems?.map((action) => (
-                <div key={action.id} className="p-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center space-x-2">
-                      <h4 className="text-sm font-bold text-slate-900 dark:text-white">{action.title}</h4>
-                      <Badge status={action.status} />
+          {meeting.documents?.length === 0 ? (
+            <div className="bg-white dark:bg-slate-800 p-8 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
+              <FileText className="w-10 h-10 text-slate-400 mx-auto mb-2" />
+              <p className="text-xs sm:text-sm text-slate-500">No documents or MoM uploaded for this meeting yet.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {meeting.documents.map((doc) => (
+                <div
+                  key={doc.id}
+                  className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs flex flex-col justify-between space-y-3"
+                >
+                  <div className="flex items-start space-x-3">
+                    <div className="p-2.5 bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400 rounded-lg shrink-0">
+                      <FileText className="w-5 h-5" />
                     </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-300">{action.description}</p>
-                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-500 pt-1">
-                      <span className="font-semibold text-slate-700 dark:text-slate-300">
-                        Dept: {action.assignedDepartment?.name} ({action.assignedDepartment?.code})
+                    <div className="min-w-0 flex-1">
+                      <span className="inline-block px-2 py-0.5 text-[9px] font-bold uppercase bg-blue-100 text-blue-800 rounded">
+                        {doc.category}
                       </span>
-                      <span>•</span>
-                      <span>Target Date: {new Date(action.targetDate).toLocaleDateString()}</span>
+                      <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white mt-1 truncate">
+                        {doc.title || doc.fileName}
+                      </h4>
+                      <p className="text-[10px] text-slate-500 truncate">{doc.fileName}</p>
                     </div>
-                    {action.remarks && (
-                      <p className="text-xs italic text-slate-500 bg-slate-50 dark:bg-slate-700/50 p-2 rounded mt-2">
-                        Remarks: {action.remarks}
-                      </p>
-                    )}
                   </div>
 
-                  {user?.role !== 'VIEWER' && action.status !== 'COMPLETED' && (
-                    <div className="flex items-center space-x-2">
-                      {action.status === 'PENDING' && (
-                        <button
-                          onClick={() => handleActionStatusChange(action.id, 'IN_PROGRESS', action.remarks)}
-                          className="px-3 py-1.5 bg-indigo-50 text-indigo-600 dark:bg-indigo-950 dark:text-indigo-300 text-xs font-semibold rounded-lg hover:bg-indigo-100 cursor-pointer"
-                        >
-                          Mark In Progress
-                        </button>
-                      )}
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-xs">
+                    <span className="text-[10px] text-slate-400">
+                      {(doc.fileSize / 1024).toFixed(1)} KB
+                    </span>
+                    <div className="flex items-center space-x-1">
                       <button
-                        onClick={() => handleActionStatusChange(action.id, 'COMPLETED', action.remarks)}
-                        className="px-3 py-1.5 bg-teal-50 text-teal-600 dark:bg-teal-950 dark:text-teal-300 text-xs font-semibold rounded-lg hover:bg-teal-100 cursor-pointer"
+                        onClick={() => setPreviewDoc(doc)}
+                        className="p-1.5 text-slate-500 hover:text-blue-600 dark:hover:text-blue-400 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+                        title="Preview Document"
                       >
-                        Mark Completed
+                        <Eye className="w-4 h-4" />
+                      </button>
+                      <a
+                        href={doc.fileUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="p-1.5 text-slate-500 hover:text-emerald-600 dark:hover:text-emerald-400 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+                        title="Download Document"
+                      >
+                        <Download className="w-4 h-4" />
+                      </a>
+                      <button
+                        onClick={() => setDeleteDocId(doc.id)}
+                        className="p-1.5 text-slate-500 hover:text-rose-600 dark:hover:text-rose-400 rounded-md hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+                        title="Delete Document"
+                      >
+                        <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
-                  )}
+                  </div>
                 </div>
-              ))
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 3: ACTION ITEMS */}
+      {activeTab === 'actions' && (
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Action Items & Compliance Tracker</h3>
+              <p className="text-xs text-slate-500">Department task assignments resulting from this meeting.</p>
+            </div>
+            {canAddActionItem && (
+              <button
+                onClick={() => setShowActionModal(true)}
+                className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg flex items-center justify-center space-x-1.5 cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Assign Action Item</span>
+              </button>
             )}
+          </div>
+
+          {meeting.actionItems?.length === 0 ? (
+            <div className="bg-white dark:bg-slate-800 p-8 rounded-xl border border-slate-200 dark:border-slate-700 text-center">
+              <CheckCircle2 className="w-10 h-10 text-slate-400 mx-auto mb-2" />
+              <p className="text-xs sm:text-sm text-slate-500">No action items assigned to departments yet.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {meeting.actionItems.map((action) => (
+                <div
+                  key={action.id}
+                  className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs flex flex-col justify-between space-y-3"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
+                        {action.assignedDepartment?.code}
+                      </span>
+                      <Badge status={action.status} />
+                    </div>
+                    <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">{action.title}</h4>
+                    <p className="text-xs text-slate-500 line-clamp-2">{action.description || 'No description'}</p>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-xs">
+                    <span className="text-[11px] font-bold text-rose-600">
+                      Due: {new Date(action.targetDate).toLocaleDateString()}
+                    </span>
+                    <button
+                      onClick={() => setStatusModalAction(action)}
+                      className="px-2.5 py-1 text-xs font-semibold bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-800 dark:text-slate-200 rounded-lg cursor-pointer"
+                    >
+                      Update Status
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* TAB 4: PARTICIPANTS */}
+      {activeTab === 'participants' && (
+        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse min-w-[500px]">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-700/50 text-xs font-bold text-slate-500 uppercase border-b border-slate-200 dark:border-slate-700">
+                  <th className="py-3.5 px-4">Official Name</th>
+                  <th className="py-3.5 px-4">Designation</th>
+                  <th className="py-3.5 px-4">Department</th>
+                  <th className="py-3.5 px-4">Contact Info</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700 text-xs sm:text-sm">
+                {meeting.participants?.map((p) => (
+                  <tr key={p.id}>
+                    <td className="py-3 px-4 font-semibold text-slate-900 dark:text-white">{p.name}</td>
+                    <td className="py-3 px-4 text-slate-700 dark:text-slate-300">{p.designation || 'N/A'}</td>
+                    <td className="py-3 px-4 text-slate-700 dark:text-slate-300">{p.department || 'N/A'}</td>
+                    <td className="py-3 px-4 text-slate-500">
+                      {p.email && <p>{p.email}</p>}
+                      {p.phone && <p>{p.phone}</p>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
 
-      {/* Tab 4: Participants */}
-      {activeTab === 'participants' && (
-        <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs overflow-hidden">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50 dark:bg-slate-700/50 text-xs font-bold text-slate-500 dark:text-slate-400 uppercase border-b border-slate-200 dark:border-slate-700">
-                <th className="py-3 px-4">Official Name</th>
-                <th className="py-3 px-4">Designation</th>
-                <th className="py-3 px-4">Department</th>
-                <th className="py-3 px-4">Contact</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-700 text-xs">
-              {meeting.participants?.map((p) => (
-                <tr key={p.id}>
-                  <td className="py-3 px-4 font-semibold text-slate-900 dark:text-white">{p.name}</td>
-                  <td className="py-3 px-4 text-slate-600 dark:text-slate-300">{p.designation || '-'}</td>
-                  <td className="py-3 px-4 text-slate-600 dark:text-slate-300">{p.department || '-'}</td>
-                  <td className="py-3 px-4 text-slate-500">{p.email || p.phone || '-'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* In-Website Document Viewer Modal */}
+      {/* DOCUMENT PREVIEW MODAL */}
       {previewDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 max-w-5xl w-full h-[88vh] flex flex-col shadow-2xl overflow-hidden">
-            {/* Modal Header */}
-            <div className="p-4 bg-slate-100 dark:bg-slate-700/70 border-b border-slate-200 dark:border-slate-600 flex items-center justify-between">
-              <div className="flex items-center space-x-3 min-w-0">
-                <div className="p-2.5 bg-blue-600 text-white rounded-xl shadow-md">
-                  {isImageFile(previewDoc.name) ? <ImageIcon className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
-                </div>
-                <div className="min-w-0">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-white truncate">{previewDoc.name}</h3>
-                  <div className="flex items-center space-x-2 text-[11px] text-slate-500 dark:text-slate-400">
-                    <span className="font-bold text-blue-600 dark:text-blue-400 uppercase">{previewDoc.fileType?.replace(/_/g, ' ')}</span>
-                    <span>•</span>
-                    <span>{(previewDoc.fileSize / (1024 * 1024)).toFixed(2)} MB</span>
-                  </div>
-                </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-700 w-[calc(100%-1.5rem)] max-w-5xl h-[88vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="px-4 py-3 bg-slate-900 text-white flex items-center justify-between shrink-0">
+              <div className="flex items-center space-x-2 min-w-0">
+                <FileText className="w-5 h-5 text-blue-400 shrink-0" />
+                <h3 className="text-xs sm:text-sm font-bold truncate">{previewDoc.title || previewDoc.fileName}</h3>
               </div>
-
               <div className="flex items-center space-x-2">
                 <a
-                  href={getDocUrl(previewDoc.filePath)}
+                  href={previewDoc.fileUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="px-3 py-1.5 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-200 dark:bg-slate-600 hover:bg-slate-300 dark:hover:bg-slate-500 rounded-lg transition-colors flex items-center space-x-1.5"
-                  title="Open in new browser tab"
+                  className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg flex items-center space-x-1"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  <span>Open Tab</span>
+                  <span className="hidden sm:inline">Open Original</span>
                 </a>
-                <a
-                  href={getDocUrl(previewDoc.filePath)}
-                  download
-                  className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors flex items-center space-x-1.5"
-                  title="Download File"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>Download</span>
-                </a>
-                <button
-                  onClick={() => setPreviewDoc(null)}
-                  className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white rounded-lg hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                >
+                <button onClick={() => setPreviewDoc(null)} className="p-1.5 text-slate-400 hover:text-white rounded-lg">
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
-            {/* Modal Body Frame with Smart Support for Images, PDFs, and Office Docs */}
-            <div className="flex-1 p-3 bg-slate-900 overflow-auto flex flex-col items-center justify-center relative">
-              {isImageFile(previewDoc.name) ? (
-                <div className="max-w-full max-h-full flex items-center justify-center p-2">
-                  <img
-                    src={getDocUrl(previewDoc.filePath)}
-                    alt={previewDoc.name}
-                    className="max-w-full max-h-[75vh] object-contain rounded-lg shadow-2xl border border-slate-700 bg-slate-950"
-                  />
-                </div>
-              ) : previewDoc.name?.toLowerCase().endsWith('.pdf') ? (
-                <object
-                  data={getDocUrl(previewDoc.filePath)}
-                  type="application/pdf"
-                  className="w-full h-full rounded-xl bg-white border-0 shadow-inner"
-                >
-                  <iframe
-                    src={getDocUrl(previewDoc.filePath)}
-                    title={previewDoc.name}
-                    className="w-full h-full rounded-xl bg-white border-0 shadow-inner"
-                  ></iframe>
-                </object>
+            <div className="flex-1 bg-slate-900 p-2 overflow-auto flex items-center justify-center">
+              {previewDoc.fileName.match(/\.(jpg|jpeg|png|webp)$/i) ? (
+                <img src={previewDoc.fileUrl} alt={previewDoc.title} className="max-w-full max-h-full object-contain rounded-lg" />
               ) : (
-                <iframe
-                  src={`https://docs.google.com/viewer?url=${encodeURIComponent(getDocUrl(previewDoc.filePath))}&embedded=true`}
-                  title={previewDoc.name}
-                  className="w-full h-full rounded-xl bg-white border-0 shadow-inner"
-                ></iframe>
+                <iframe src={previewDoc.fileUrl} title="Document Preview" className="w-full h-full border-0 rounded-lg bg-white" />
               )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Upload Document Modal */}
+      {/* UPLOAD DOCUMENT MODAL */}
       {showUploadModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 max-w-md w-full p-6 space-y-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 w-[calc(100%-2rem)] max-w-lg p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Upload Meeting Document / Image</h3>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Upload Meeting Document</h3>
               <button onClick={() => setShowUploadModal(false)}><X className="w-5 h-5 text-slate-400" /></button>
             </div>
 
-            <form onSubmit={handleFileUpload} className="space-y-4">
+            <form onSubmit={handleUploadDocument} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Document Category</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Category *</label>
                 <select
                   value={docCategory}
                   onChange={(e) => setDocCategory(e.target.value)}
                   className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
                 >
-                  <option value="MOM">MoM</option>
-                  <option value="ATTENDANCE_SHEET">Attendance sheet (optional)</option>
-                  <option value="AGENDA">Agenda Document</option>
-                  <option value="PROCEEDINGS">Proceedings Document</option>
-                  <option value="SUPPORTING">Supporting documents</option>
+                  <option value="MOM">Minutes of Meeting (MoM)</option>
+                  <option value="AGENDA">Official Agenda Document</option>
+                  <option value="ATTENDANCE">Attendance Sheet</option>
+                  <option value="PRESENTATION">Presentation Deck</option>
+                  <option value="PHOTO">Event Photo / Media</option>
+                  <option value="OTHER">Other Annexure Document</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Select Files (PDF, DOCX, XLSX, JPG, PNG, WEBP - Max 10MB)
-                </label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Document Title</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Official Signed Minutes of Meeting"
+                  value={docTitle}
+                  onChange={(e) => setDocTitle(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Select File (PDF, Office, Images up to 10MB) *</label>
                 <input
                   type="file"
-                  multiple
-                  accept=".pdf,.docx,.xlsx,.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
-                  onChange={(e) => setUploadFiles(Array.from(e.target.files))}
+                  required
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.webp"
+                  onChange={(e) => setDocFile(e.target.files[0])}
                   className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                 />
               </div>
@@ -704,7 +569,7 @@ export default function MeetingDetail() {
                 <button
                   type="button"
                   onClick={() => setShowUploadModal(false)}
-                  className="px-4 py-2 text-xs font-medium bg-slate-100 dark:bg-slate-700 rounded-lg"
+                  className="px-4 py-2 text-xs font-semibold bg-slate-100 dark:bg-slate-700 rounded-lg"
                 >
                   Cancel
                 </button>
@@ -713,7 +578,7 @@ export default function MeetingDetail() {
                   disabled={uploading}
                   className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
                 >
-                  {uploading ? 'Uploading...' : 'Upload Files'}
+                  {uploading ? 'Uploading...' : 'Upload Document'}
                 </button>
               </div>
             </form>
@@ -721,74 +586,93 @@ export default function MeetingDetail() {
         </div>
       )}
 
-      {/* Create Action Item Modal */}
+      {/* ASSIGN ACTION ITEM MODAL */}
       {showActionModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 max-w-md w-full p-6 space-y-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 w-[calc(100%-2rem)] max-w-lg p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900 dark:text-white">Create Action Item</h3>
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Assign Action Item</h3>
               <button onClick={() => setShowActionModal(false)}><X className="w-5 h-5 text-slate-400" /></button>
             </div>
 
             <form onSubmit={handleCreateActionItem} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Action Title *</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Task Title *</label>
                 <input
                   type="text"
+                  required
+                  placeholder="e.g. Inspect highway accident prone zones"
                   value={actionTitle}
                   onChange={(e) => setActionTitle(e.target.value)}
-                  placeholder="e.g. Conduct road audit on NH-46"
                   className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Description</label>
-                <textarea
-                  rows={2}
-                  value={actionDesc}
-                  onChange={(e) => setActionDesc(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
-                ></textarea>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Assigned Department *</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Assign to Department *</label>
                 <select
-                  value={actionDept}
-                  onChange={(e) => setActionDept(e.target.value)}
+                  required
+                  value={assignedDeptId}
+                  onChange={(e) => setAssignedDeptId(e.target.value)}
                   className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
                 >
+                  <option value="">Select Department</option>
                   {departments.map((d) => (
                     <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
                   ))}
                 </select>
               </div>
 
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Target Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={targetDate}
+                    onChange={(e) => setTargetDate(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Priority</label>
+                  <select
+                    value={priority}
+                    onChange={(e) => setPriority(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
+                  >
+                    <option value="LOW">Low</option>
+                    <option value="MEDIUM">Medium</option>
+                    <option value="HIGH">High</option>
+                    <option value="URGENT">Urgent</option>
+                  </select>
+                </div>
+              </div>
+
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Target Completion Date *</label>
-                <input
-                  type="date"
-                  value={actionTargetDate}
-                  onChange={(e) => setActionTargetDate(e.target.value)}
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Action Description & Remarks</label>
+                <textarea
+                  rows={3}
+                  value={actionDesc}
+                  onChange={(e) => setActionDesc(e.target.value)}
                   className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
-                />
+                ></textarea>
               </div>
 
               <div className="flex items-center justify-end space-x-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setShowActionModal(false)}
-                  className="px-4 py-2 text-xs font-medium bg-slate-100 dark:bg-slate-700 rounded-lg"
+                  className="px-4 py-2 text-xs font-semibold bg-slate-100 dark:bg-slate-700 rounded-lg"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  disabled={actionLoading}
+                  disabled={creatingAction}
                   className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
                 >
-                  {actionLoading ? 'Creating...' : 'Assign Action'}
+                  {creatingAction ? 'Assigning...' : 'Assign Action Item'}
                 </button>
               </div>
             </form>
@@ -796,13 +680,68 @@ export default function MeetingDetail() {
         </div>
       )}
 
-      {/* Delete Document Confirmation */}
+      {/* UPDATE STATUS REMARKS MODAL */}
+      {statusModalAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 w-[calc(100%-2rem)] max-w-md p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Update Task Status</h3>
+              <button onClick={() => setStatusModalAction(null)}><X className="w-5 h-5 text-slate-400" /></button>
+            </div>
+
+            <form onSubmit={handleUpdateActionStatus} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Compliance Status</label>
+                <select
+                  value={newStatus}
+                  onChange={(e) => setNewStatus(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
+                >
+                  <option value="PENDING">Pending</option>
+                  <option value="IN_PROGRESS">In Progress</option>
+                  <option value="COMPLETED">Completed</option>
+                  <option value="OVERDUE">Overdue</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Progress Remarks</label>
+                <textarea
+                  rows={3}
+                  value={remarks}
+                  onChange={(e) => setRemarks(e.target.value)}
+                  placeholder="Details of action taken or reasons for delay..."
+                  className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
+                ></textarea>
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setStatusModalAction(null)}
+                  className="px-4 py-2 text-xs font-semibold bg-slate-100 dark:bg-slate-700 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg"
+                >
+                  Save Status Update
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Document Modal */}
       <ConfirmModal
         isOpen={!!deleteDocId}
         onClose={() => setDeleteDocId(null)}
         onConfirm={handleDeleteDocument}
         title="Delete Document"
-        message="Are you sure you want to delete this uploaded file?"
+        message="Are you sure you want to delete this document?"
         danger={true}
       />
     </div>

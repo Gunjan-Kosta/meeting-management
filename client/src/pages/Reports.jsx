@@ -68,37 +68,37 @@ export default function Reports() {
   return (
     <div className="space-y-6">
       {/* Top Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 no-print">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 no-print">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">System Reports & Analytics</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Generate executive summary reports and export formatted files.</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white tracking-tight">System Reports & Analytics</h1>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">Generate executive summary reports and export formatted files.</p>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2 sm:space-x-3 shrink-0">
           <button
             onClick={exportToCSV}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg shadow transition-all flex items-center space-x-1.5"
+            className="flex-1 sm:flex-initial px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs rounded-lg shadow-xs transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
           >
-            <Download className="w-4 h-4" />
-            <span>Export to Excel</span>
+            <Download className="w-4 h-4 shrink-0" />
+            <span>Export Excel</span>
           </button>
           <button
             onClick={handlePrintPDF}
-            className="px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg shadow transition-all flex items-center space-x-1.5"
+            className="flex-1 sm:flex-initial px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg shadow-xs transition-all flex items-center justify-center space-x-1.5 cursor-pointer"
           >
-            <Printer className="w-4 h-4" />
-            <span>Export to PDF</span>
+            <Printer className="w-4 h-4 shrink-0" />
+            <span>Export PDF</span>
           </button>
         </div>
       </div>
 
       {/* Report Controls */}
-      <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs flex flex-wrap gap-4 items-center no-print">
-        <div>
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs flex flex-col sm:flex-row flex-wrap gap-3 sm:gap-4 items-stretch sm:items-center no-print">
+        <div className="flex-1 min-w-[200px]">
           <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Select Report Category</label>
           <select
             value={reportType}
             onChange={(e) => setReportType(e.target.value)}
-            className="px-3 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg border border-slate-200 dark:border-slate-600"
+            className="w-full px-3 py-2 text-xs font-semibold bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg border border-slate-200 dark:border-slate-600"
           >
             <option value="COMPLIANCE">Department Compliance Report</option>
             <option value="MEETING_TYPE">Meeting Type Distribution Report</option>
@@ -108,12 +108,12 @@ export default function Reports() {
           </select>
         </div>
 
-        <div>
+        <div className="w-full sm:w-auto">
           <label className="block text-[11px] font-bold text-slate-500 uppercase mb-1">Year</label>
           <select
             value={year}
             onChange={(e) => setYear(e.target.value)}
-            className="px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg border border-slate-200 dark:border-slate-600"
+            className="w-full sm:w-auto px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 text-slate-900 dark:text-white rounded-lg border border-slate-200 dark:border-slate-600"
           >
             <option value="2026">2026</option>
             <option value="2025">2025</option>
@@ -122,10 +122,10 @@ export default function Reports() {
       </div>
 
       {/* Generated Report View Container */}
-      <div className="bg-white dark:bg-slate-800 p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-6">
-        <div className="border-b border-slate-100 dark:border-slate-700 pb-4 flex items-center justify-between">
+      <div className="bg-white dark:bg-slate-800 p-4 sm:p-6 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-4 sm:space-y-6">
+        <div className="border-b border-slate-100 dark:border-slate-700 pb-3 sm:pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <div>
-            <h3 className="text-lg font-extrabold text-slate-900 dark:text-white">{reportType.replace(/_/g, ' ')} REPORT</h3>
+            <h3 className="text-base sm:text-lg font-extrabold text-slate-900 dark:text-white">{reportType.replace(/_/g, ' ')} REPORT</h3>
             <p className="text-xs text-slate-500">Government Meeting Management System • Generated Year {year}</p>
           </div>
         </div>
@@ -134,7 +134,7 @@ export default function Reports() {
           <LoadingSkeleton type="table" count={4} />
         ) : reportType === 'COMPLIANCE' ? (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[650px]">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-700/50 text-xs font-bold text-slate-500 uppercase border-b border-slate-200 dark:border-slate-700">
                   <th className="py-3 px-4">Department Code</th>
@@ -146,7 +146,7 @@ export default function Reports() {
                   <th className="py-3 px-4 text-right">Compliance Rate</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-700 text-xs">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700 text-xs sm:text-sm">
                 {data.map((row) => (
                   <tr key={row.departmentId}>
                     <td className="py-3 px-4 font-mono font-semibold text-blue-600">{row.departmentCode}</td>
@@ -167,7 +167,7 @@ export default function Reports() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse min-w-[500px]">
               <thead>
                 <tr className="bg-slate-50 dark:bg-slate-700/50 text-xs font-bold text-slate-500 uppercase border-b border-slate-200 dark:border-slate-700">
                   {data[0] && Object.keys(data[0]).map((key) => (
@@ -175,7 +175,7 @@ export default function Reports() {
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-700 text-xs">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-700 text-xs sm:text-sm">
                 {data.map((row, idx) => (
                   <tr key={idx}>
                     {Object.values(row).map((val, i) => (
