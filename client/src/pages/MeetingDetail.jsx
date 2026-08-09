@@ -398,7 +398,7 @@ export default function MeetingDetail() {
               <h3 className="text-base font-bold text-slate-900 dark:text-white">Action Items & Compliance Tracker</h3>
               <p className="text-xs text-slate-500">Department task assignments resulting from this meeting.</p>
             </div>
-            {canAddActionItem && (
+            {canAddActionItem(meeting.status) && (
               <button
                 onClick={() => setShowActionModal(true)}
                 className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg flex items-center justify-center space-x-1.5 cursor-pointer"

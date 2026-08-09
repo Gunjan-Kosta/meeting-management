@@ -69,6 +69,14 @@ export const AuthProvider = ({ children }) => {
   };
   const canCloseMeeting = isStateAdmin;
   const canDeleteMeeting = isStateAdmin;
+  const canUploadMom = (meetingStatus) => {
+    if (isViewer) return false;
+    return meetingStatus !== 'CLOSED';
+  };
+  const canAddActionItem = (meetingStatus) => {
+    if (isViewer) return false;
+    return meetingStatus !== 'CLOSED';
+  };
 
   return (
     <AuthContext.Provider
@@ -87,6 +95,8 @@ export const AuthProvider = ({ children }) => {
         canSubmitMeeting,
         canCloseMeeting,
         canDeleteMeeting,
+        canUploadMom,
+        canAddActionItem,
       }}
     >
       {children}
