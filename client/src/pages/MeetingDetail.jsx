@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import API from '../services/api.js';
+import API, { getFileUrl } from '../services/api.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import Badge from '../components/Badge.jsx';
 import LoadingSkeleton from '../components/LoadingSkeleton.jsx';
@@ -569,7 +569,7 @@ export default function MeetingDetail() {
                     <div className="space-y-2">
                       {catDocs.map((doc) => {
                         const displayName = doc.name || doc.title || doc.fileName || 'Document';
-                        const fileSrc = doc.filePath || doc.fileUrl;
+                        const fileSrc = getFileUrl(doc.filePath || doc.fileUrl);
                         return (
                           <div
                             key={doc.id}
@@ -806,49 +806,118 @@ export default function MeetingDetail() {
       )}
 
       {/* DOCUMENT PREVIEW MODAL */}
-      {previewDoc && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/75 backdrop-blur-xs">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-700 w-[calc(100%-1.5rem)] max-w-5xl h-[88vh] flex flex-col overflow-hidden shadow-2xl">
-            <div className="px-4 py-3 bg-slate-900 text-white flex items-center justify-between shrink-0 border-b border-slate-800">
-              <div className="flex items-center space-x-2 min-w-0">
-                <FileText className="w-5 h-5 text-blue-400 shrink-0" />
-                <h3 className="text-xs sm:text-sm font-bold truncate">{previewDoc.name || previewDoc.title || previewDoc.fileName}</h3>
-              </div>
-              <div className="flex items-center space-x-2">
-                <a
-                  href={previewDoc.filePath || previewDoc.fileUrl}
-                  download={previewDoc.name || previewDoc.title || previewDoc.fileName}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg flex items-center space-x-1"
-                >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">Open Original</span>
-                </a>
-                <button onClick={() => setPreviewDoc(null)} className="p-1.5 text-slate-400 hover:text-white rounded-lg">
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-            </div>
+      {previewDoc && (() => {
+        const docName = previewDoc.name || previewDoc.title || previewDoc.fileName || 'Document';
+        const fileSrc = getFileUrl(previewDoc.filePath || previewDoc.fileUrl);
+        const ext = (docName.split('.').pop() || '').toLowerCase();
+        const isImage = ['jpg', 'jpeg', 'png'].includes(ext);
+        const isPdf = ext === 'pdf';
+        const isOffice = ['docx', 'xlsx'].includes(ext);
 
-            <div className="flex-1 bg-slate-900 p-2 overflow-auto flex items-center justify-center">
-              {(previewDoc.name || previewDoc.fileName || previewDoc.filePath || '').match(/\.(jpg|jpeg|png)$/i) ? (
-                <img
-                  src={previewDoc.filePath || previewDoc.fileUrl}
-                  alt={previewDoc.name || previewDoc.title || 'Document'}
-                  className="max-w-full max-h-full object-contain rounded-lg"
-                />
-              ) : (
-                <iframe
-                  src={previewDoc.filePath || previewDoc.fileUrl}
-                  title="Document Preview"
-                  className="w-full h-full border-0 rounded-lg bg-white"
-                />
-              )}
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm">
+            <div className="bg-slate-900 border border-slate-700 rounded-2xl w-[calc(100%-1.5rem)] max-w-5xl h-[88vh] flex flex-col overflow-hidden shadow-2xl">
+              <div className="px-4 py-3 bg-slate-950 text-white flex items-center justify-between shrink-0 border-b border-slate-800">
+                <div className="flex items-center space-x-2.5 min-w-0">
+                  <FileText className="w-5 h-5 text-blue-400 shrink-0" />
+                  <h3 className="text-xs sm:text-sm font-bold truncate">{docName}</h3>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800/60 uppercase">
+                    {ext}
+                  </span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <a
+                    href={fileSrc}
+                    download={docName}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg flex items-center space-x-1.5 transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Open Original</span>
+                  </a>
+                  <a
+                    href={fileSrc}
+                    download={docName}
+                    className="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-slate-800 transition-colors"
+                    title="Download File"
+                  >
+                    <Download className="w-4 h-4" />
+                  </a>
+                  <button
+                    onClick={() => setPreviewDoc(null)}
+                    className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                    title="Close"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 bg-slate-950 p-2 overflow-auto flex items-center justify-center relative">
+                {isImage ? (
+                  <img
+                    src={fileSrc}
+                    alt={docName}
+                    className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                  />
+                ) : isPdf ? (
+                  <object
+                    data={fileSrc}
+                    type="application/pdf"
+                    className="w-full h-full rounded-lg bg-white shadow-inner"
+                  >
+                    <iframe
+                      src={`${fileSrc}#toolbar=1&navpanes=0`}
+                      title="PDF Document Preview"
+                      className="w-full h-full border-0 rounded-lg bg-white"
+                    />
+                  </object>
+                ) : isOffice ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center space-y-4">
+                    <div className="p-6 bg-slate-800 border border-slate-700 rounded-2xl flex flex-col items-center max-w-md w-full space-y-4">
+                      <div className="p-3.5 bg-blue-600/20 text-blue-400 rounded-xl border border-blue-500/30">
+                        <FileText className="w-8 h-8" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-white truncate max-w-xs">{docName}</h4>
+                        <p className="text-xs text-slate-400 mt-1">
+                          Office documents ({ext.toUpperCase()}) can be downloaded directly or viewed via Google Docs / Office viewer.
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+                        <a
+                          href={fileSrc}
+                          download={docName}
+                          className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl flex items-center space-x-2 shadow-lg shadow-blue-600/30 transition-all cursor-pointer"
+                        >
+                          <Download className="w-4 h-4" />
+                          <span>Download {ext.toUpperCase()}</span>
+                        </a>
+                        <a
+                          href={`https://docs.google.com/viewer?url=${encodeURIComponent(fileSrc)}&embedded=true`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-semibold rounded-xl flex items-center space-x-2 transition-all cursor-pointer"
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                          <span>Open in Google Viewer</span>
+                        </a>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <iframe
+                    src={fileSrc}
+                    title="Document Preview"
+                    className="w-full h-full border-0 rounded-lg bg-white"
+                  />
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* UPLOAD DOCUMENT MODAL */}
       {showUploadModal && (

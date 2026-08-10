@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/uploads/:path*",
+      "destination": "https://meeting-management-backend-28xq.onrender.com/uploads/:path*"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "https://meeting-management-backend-28xq.onrender.com/api/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }

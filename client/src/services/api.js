@@ -1,11 +1,29 @@
 import axios from 'axios';
 import toast from 'react-hot-toast';
 
-const getBaseURL = () => {
+export const getBaseURL = () => {
   const envUrl = import.meta.env.VITE_API_BASE_URL;
   if (!envUrl) return '/api';
   const cleanUrl = envUrl.trim().replace(/\/+$/, '');
   return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
+};
+
+export const getFileUrl = (filePath) => {
+  if (!filePath) return '';
+  if (filePath.startsWith('http://') || filePath.startsWith('https://') || filePath.startsWith('blob:') || filePath.startsWith('data:')) {
+    return filePath;
+  }
+
+  const envUrl = import.meta.env.VITE_API_BASE_URL;
+  let backendOrigin = '';
+  if (envUrl) {
+    backendOrigin = envUrl.trim().replace(/\/+$/, '').replace(/\/api$/, '');
+  } else if (typeof window !== 'undefined' && window.location.hostname.includes('vercel.app')) {
+    backendOrigin = 'https://meeting-management-backend-28xq.onrender.com';
+  }
+
+  const cleanPath = filePath.startsWith('/') ? filePath : `/${filePath}`;
+  return backendOrigin ? `${backendOrigin}${cleanPath}` : cleanPath;
 };
 
 const API = axios.create({
