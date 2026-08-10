@@ -1,115 +1,249 @@
-# Government Enterprise Meeting Management System
+# 🏛️ Government Enterprise Meeting Management & Compliance System
 
-An enterprise-grade, production-quality Meeting Management & Action Item Compliance Tracking System built with Node.js, Express, Prisma ORM, React.js, Vite, Tailwind CSS, Recharts, and JWT authentication.
+[![Node.js](https://img.shields.io/badge/Node.js-v18%2B-green?logo=node.js)](https://nodejs.org/)
+[![React](https://img.shields.io/badge/React-v19-blue?logo=react)](https://reactjs.org/)
+[![Prisma](https://img.shields.io/badge/Prisma-v6-2D3748?logo=prisma)](https://www.prisma.io/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Atlas-47A248?logo=mongodb)](https://www.mongodb.com/)
+[![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-v3-38B2AC?logo=tailwind-css)](https://tailwindcss.com/)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-> **Note**: This application is strictly designed for maintaining official meeting records, uploading Minutes of Meeting (MoM), managing supporting documents, assigning action items across departments, tracking compliance rates, generating analytical reports, and logging audit trails. Meetings are conducted externally; this portal manages governance and tracking.
+An enterprise-grade, secure, and production-ready **Meeting Management & Action Item Compliance Tracking System** built for government departments, state secretariats, and district collectorates. 
 
----
-
-## 🛠️ Tech Stack
-
-### Backend
-- **Node.js & Express.js** - MVC Clean Architecture
-- **Prisma ORM** - Database client with migrations & SQLite/MySQL schema configurations
-- **JWT & bcryptjs** - Secure token authentication and salted password hashing
-- **Multer** - Document upload validation (Max 10MB each, PDF/DOCX/XLSX only)
-- **Node Cron** - Automated background reminder scheduler for upcoming action item deadlines
-- **Nodemailer** - Email notifications integration
-- **Helmet & Rate Limiting** - HTTP header security and rate limiting against brute-force attacks
-
-### Frontend
-- **React.js 19 & Vite** - High-performance frontend engine
-- **React Router DOM v7** - Client-side routing with role-based layout guards
-- **Tailwind CSS v3** - Enterprise government portal design system (White, Light Gray, Blue Accent) with Dark Mode toggle
-- **Recharts** - Data visualization for monthly trends, meeting type distributions, and department workloads
-- **React Hook Form & React Hot Toast** - Form validation and non-blocking toast notifications
-- **Lucide React** - Modern accessible icon system
+Developed and maintained by **GUNJAN KOSTA**.
 
 ---
 
-## 👥 Role Based Access Control (RBAC)
+## 👨‍💻 Developer & Author
 
-1. **State Administrator**
-   - Full system access across all districts and state level departments.
-   - Create, edit, submit, close, and delete meetings.
-   - Provision user accounts, assign roles, and manage departments.
-   - View immutable system audit logs and executive compliance reports.
-
-2. **District User**
-   - Create meetings for their designated district.
-   - Edit draft meetings, upload documents, and submit meeting records.
-   - Update status and progress remarks on assigned action items.
-   - Cannot edit or delete submitted/closed meetings.
-
-3. **Viewer**
-   - Read-only dashboard analytics, meeting detail inspection, and reports.
+* **Lead Developer & Architect**: **GUNJAN KOSTA**
+* **Project Repository**: [Gunjan-Kosta/meeting-management](https://github.com/Gunjan-Kosta/meeting-management)
+* **Frontend**: React 19 + Vite (Deployed on Vercel)
+* **Backend**: Node.js + Express + Prisma ORM (Deployed on Render)
+* **Database**: MongoDB Atlas Cloud
 
 ---
 
-## 🔑 Default Seeded Demo Accounts
+## 📌 Project Overview & Purpose
 
-| Role | Email | Password | Access Scope |
-| :--- | :--- | :--- | :--- |
-| **State Administrator** | `admin@gov.in` | `Admin@123` | Full Access (State HQ) |
-| **District User** | `district.user@gov.in` | `Admin@123` | Bhopal District |
-| **Viewer** | `viewer@gov.in` | `Admin@123` | Read-Only |
+Government and administrative departments conduct critical policy, review, and inter-departmental coordination meetings. This application serves as the **centralized governance portal** to:
+- Formally archive and track meetings across all districts and state headquarters.
+- Upload and secure Minutes of Meetings (MoM), Attendance Sheets, Agenda, and Supporting Documents.
+- Break down meeting decisions into trackable **Action Items** assigned to specific departments with strict completion deadlines.
+- Track compliance rates, overdue items, and departmental resolution speeds.
+- Provide state administrators and district magistrates with executive dashboards and analytical reports.
+- Maintain an immutable, tamper-proof **Audit Trail** for every system interaction.
 
 ---
 
-## 📁 Project Structure
+## 🌟 Key Features
+
+### 1. 📅 Comprehensive Meeting Lifecycle Management
+- **Meeting Categorization**: Supports official government meeting types:
+  - `DISTRICT_LEVEL` (District Level Review)
+  - `SANSAD` (Parliamentary / Sansad Meetings)
+  - `RAJYA_SADAK_SURAKSHA` (State Road Safety Committee)
+  - `SAMIKSHA_BAITHAK` (Departmental Review Meetings)
+  - `MANTRI_PARISHAD` (Cabinet / Council of Ministers)
+- **Lifecycle States**: `DRAFT` $\rightarrow$ `SUBMITTED` $\rightarrow$ `CLOSED`.
+- **Mandatory MoM Validation**: Meetings cannot be submitted without an official Minutes of Meeting (MoM) uploaded.
+- **State Admin Reopen Feature**: `STATE_ADMIN` can reopen `SUBMITTED` or `CLOSED` meetings back to `DRAFT` for updates.
+- **Participant Directory**: Track participants with name, designation, department, and attendance toggle.
+
+### 2. 📁 Document Management & Strict Validation
+- **Allowed Formats**: Strictly restricted to `.pdf`, `.xlsx`, `.docx`, `.jpeg`, `.jpg`, and `.png`.
+- **File Validation Rules**:
+  - Max 10MB per file.
+  - Max 10 attachments per meeting.
+  - Server-side Multer filtering & client-side extension validation.
+- **Live Preview Modal**:
+  - Native PDF document viewer with toolbar navigation.
+  - Responsive high-resolution image rendering for photo evidence.
+  - Direct download and Google Docs/Office Viewer fallback for `.docx` and `.xlsx`.
+- **Automatic Storage Cleanup**: Deleting a document removes both the database record and the physical file from server storage.
+
+### 3. 🎯 Action Item & Departmental Compliance Tracker
+- **Task Assignment**: Assign tasks to designated state/district departments with target completion dates.
+- **Status Lifecycle**: `PENDING` $\rightarrow$ `IN_PROGRESS` $\rightarrow$ `COMPLETED`.
+- **Departmental Remarks**: Real-time progress updates and remarks logged per action item.
+- **Automated Reminder Cron**: Background cron service sends reminder notifications for pending and upcoming deadlines.
+
+### 4. 📊 Executive Dashboard & Analytics
+- **Live KPIs**: Total meetings, submitted/closed counts, pending action items, and departmental compliance rate.
+- **Interactive Visualizations (Recharts)**:
+  - Monthly Meeting Volume & Trends.
+  - Meeting Type Distribution (Pie Chart).
+  - Departmental Action Item Workload (Bar Chart).
+  - Status Breakdown (Pending vs. In Progress vs. Completed).
+- **Executive Reports**: Filter compliance data by date range, district, department, and export to CSV / JSON.
+
+### 5. 🛡️ Tamper-Proof Audit Logging & Activity Trail
+- Records all actions: `MEETING_CREATED`, `MEETING_UPDATED`, `MEETING_SUBMITTED`, `MEETING_CLOSED`, `MEETING_REOPENED`, `MEETING_DELETED`, `DOCUMENT_UPLOADED`, `MOM_UPLOADED`, `DOCUMENT_DELETED`, `ACTION_ITEM_CREATED`, `ACTION_ITEM_UPDATED`, `ACTION_ITEM_COMPLETED`.
+- Captures User ID, Timestamp, IP Address, and Event Details.
+- **Dedicated Activity History Tab** on the Meeting Details page.
+
+### 6. 🔐 Role-Based Access Control (RBAC)
+| Feature / Action | State Administrator (`STATE_ADMIN`) | District User (`DISTRICT_USER`) | Viewer (`VIEWER`) |
+| :--- | :---: | :---: | :---: |
+| View Meetings & Analytics | ✅ | ✅ | ✅ |
+| Create Meetings | ✅ (All Districts) | ✅ (Assigned District) | ❌ |
+| Edit Draft Meetings | ✅ | ✅ | ❌ |
+| Upload / Delete Documents | ✅ | ✅ (Draft status only) | ❌ |
+| Submit Meeting (MoM required) | ✅ | ✅ | ❌ |
+| Reopen Meeting (`SUBMITTED`/`CLOSED`) | ✅ | ❌ | ❌ |
+| Close Meeting | ✅ | ❌ | ❌ |
+| Create / Update Action Items | ✅ | ✅ | ❌ |
+| Manage Users & Departments | ✅ | ❌ | ❌ |
+| System Audit Logs | ✅ | ❌ | ❌ |
+
+---
+
+## 🛠️ Technology Stack
+
+### Backend Architecture
+- **Runtime**: Node.js (v18+)
+- **Framework**: Express.js (MVC Pattern with centralized error handling)
+- **Database & ORM**: MongoDB Atlas via **Prisma ORM 6**
+- **Authentication**: Stateless JSON Web Tokens (JWT) with salted bcrypt password hashing
+- **File Ingestion**: Multer with strict MIME & extension verification
+- **Security & Headers**: Helmet, CORS (Cross-Origin Resource Sharing), and rate-limiting
+- **Background Tasks**: Node-Cron for scheduled deadline reminders
+- **Email Service**: Nodemailer integration
+
+### Frontend Architecture
+- **Framework**: React 19 + Vite
+- **Routing**: React Router DOM v7 (with protected RBAC route guards)
+- **Styling**: Tailwind CSS v3 (Enterprise dark mode palette, glassmorphism, responsive grid)
+- **Charts & Graphs**: Recharts
+- **Icons**: Lucide React
+- **Notifications**: React Hot Toast
+- **HTTP Client**: Axios with automatic JWT interceptors and base URL resolver
+
+---
+
+## 📁 Repository Structure
 
 ```
 meeting-management/
-├── client/                     # Frontend Application
+├── client/                               # Frontend Application (React + Vite)
 │   ├── src/
-│   │   ├── components/         # Sidebar, Navbar, ConfirmModal, Badge, LoadingSkeleton
-│   │   ├── context/            # AuthContext (JWT state, dark mode, RBAC helpers)
-│   │   ├── layouts/            # DashboardLayout, AuthLayout
-│   │   ├── pages/              # Dashboard, Meetings, Action Tracker, Reports, Audit Logs, Users, Profile
-│   │   ├── services/           # Axios API client with request/response interceptors
-│   │   ├── App.jsx             # Route definitions & protected route guards
+│   │   ├── components/                   # Navbar, Sidebar, Badge, LoadingSkeleton, ConfirmModal
+│   │   ├── context/                      # AuthContext (Authentication, RBAC helpers, Dark Mode)
+│   │   ├── layouts/                      # DashboardLayout, AuthLayout
+│   │   ├── pages/
+│   │   │   ├── Dashboard.jsx             # Executive KPI Dashboard & Charts
+│   │   │   ├── Meetings.jsx              # Meeting list, search, filters & create modal
+│   │   │   ├── MeetingDetail.jsx         # Meeting overview, documents, actions & audit trail
+│   │   │   ├── ActionTracker.jsx         # Action items compliance tracker & status updates
+│   │   │   ├── Reports.jsx               # Analytical reports & data export
+│   │   │   ├── AuditLogs.jsx             # System audit logs explorer
+│   │   │   ├── Users.jsx                 # User management (Admin only)
+│   │   │   ├── Profile.jsx               # User profile & password reset
+│   │   │   └── Login.jsx                 # Secure login page
+│   │   ├── services/
+│   │   │   └── api.js                    # Axios instance & getFileUrl host resolver
+│   │   ├── App.jsx                       # Routing tree & access control guards
 │   │   └── main.jsx
-│   ├── index.html
-│   ├── tailwind.config.js
+│   ├── vercel.json                       # Vercel SPA routing & backend proxy rewrites
 │   └── vite.config.js
-└── server/                     # Backend Application
-    ├── config/                 # db.js (Prisma Client), mail.js (Nodemailer setup)
-    ├── controllers/            # Auth, Meeting, Document, Action, Department, User, Dashboard, Report, AuditLog
-    ├── middleware/             # authMiddleware, rbacMiddleware, uploadMiddleware, rateLimiter, errorHandler
-    ├── prisma/                 # schema.prisma (SQLite/MySQL models) & seed.js
-    ├── routes/                 # Express route handlers
-    ├── services/               # auditService, cronService, reportService
-    ├── utils/                  # meetingCodeGenerator, fileValidator, responseHandler
-    └── app.js                  # Express app entry point
+│
+└── server/                               # Backend Application (Node.js + Express + Prisma)
+    ├── config/
+    │   ├── db.js                         # Prisma client instance
+    │   └── mail.js                       # Nodemailer transporter configuration
+    ├── controllers/                      # Business logic controllers (Auth, Meeting, Document, Action, etc.)
+    ├── middleware/                       # authMiddleware, rbacMiddleware, uploadMiddleware, rateLimiter
+    ├── prisma/
+    │   ├── schema.prisma                 # MongoDB schema definitions & Prisma models
+    │   └── seed.js                       # Database seeder (users, departments, default data)
+    ├── routes/                           # REST API routes
+    ├── services/                         # auditService, cronService, reportService
+    ├── utils/                            # fileValidator, meetingCodeGenerator, responseHandler
+    └── app.js                            # Express server entry point & static file hosting
 ```
 
 ---
 
-## 🚦 Quick Start & Local Execution
+## 🔑 Default Credentials (Demo / Seed Data)
+
+| Role | Email | Password | Scope |
+| :--- | :--- | :--- | :--- |
+| **State Administrator** | `admin@gov.in` | `Admin@123` | Full Statewide System Access |
+| **District User** | `bhopal@gov.in` | `Admin@123` | Bhopal District Scope |
+| **Public Viewer** | `viewer@gov.in` | `Admin@123` | Read-Only Access |
+
+---
+
+## 🚀 Local Installation & Setup
 
 ### Prerequisites
-- Node.js (v18+)
-- npm or yarn
+- [Node.js](https://nodejs.org/) (v18.0.0 or higher)
+- [MongoDB Atlas](https://www.mongodb.com/atlas) account or local MongoDB instance
 
-### 1. Backend Setup
+### 1. Clone the Repository
+```bash
+git clone https://github.com/Gunjan-Kosta/meeting-management.git
+cd meeting-management
+```
+
+### 2. Backend Setup
 ```bash
 cd server
 npm install
+
+# Configure environment variables in server/.env:
+# PORT=5000
+# DATABASE_URL=mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/meeting_management?retryWrites=true&w=majority
+# JWT_SECRET=your_jwt_secret_key
+# FRONTEND_URL=http://localhost:3000
+
+# Initialize Prisma Client & Seed Database
+npx prisma generate
 npx prisma db push
 node seed.js
+
+# Start backend server
 npm start
 ```
-*Backend API server runs at `http://localhost:5000`*
+*Backend runs on: `http://localhost:5000`*
 
-### 2. Frontend Setup
+### 3. Frontend Setup
 ```bash
-cd client
+cd ../client
 npm install
+
+# Start Vite dev server
 npm run dev
 ```
-*Frontend application runs at `http://localhost:3000`*
+*Frontend runs on: `http://localhost:3000` (or `http://localhost:5173`)*
+
+---
+
+## 🌐 Production Cloud Deployment
+
+### 1. Backend on Render
+- **Environment**: Node
+- **Build Command**: `npm install && npx prisma generate`
+- **Start Command**: `npm start`
+- **Environment Variables**:
+  - `DATABASE_URL`: MongoDB Atlas URI
+  - `JWT_SECRET`: Secure 64-character secret
+  - `NODE_ENV`: `production`
+  - `FRONTEND_URL`: `https://meeting-management-client.vercel.app`
+
+### 2. Frontend on Vercel
+- **Framework Preset**: Vite
+- **Root Directory**: `client`
+- **Build Command**: `npm run build`
+- **Output Directory**: `dist`
+- **Environment Variables**:
+  - `VITE_API_BASE_URL`: `https://meeting-management-backend-28xq.onrender.com/api`
 
 ---
 
 ## 📄 License
-This project is licensed under the MIT License.
+
+This project is licensed under the **MIT License** - see the LICENSE file for details.
+
+---
+
+### Developed with ❤️ by **GUNJAN KOSTA**
