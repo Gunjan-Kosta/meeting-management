@@ -3,7 +3,7 @@ import API from '../services/api.js';
 import LoadingSkeleton from '../components/LoadingSkeleton.jsx';
 import Badge from '../components/Badge.jsx';
 import toast from 'react-hot-toast';
-import { Users as UsersIcon, UserPlus, Shield, CheckCircle, XCircle, X } from 'lucide-react';
+import { Users as UsersIcon, UserPlus, Shield, CheckCircle, XCircle, X, Trash2 } from 'lucide-react';
 
 export default function Users() {
   const [users, setUsers] = useState([]);
@@ -74,6 +74,8 @@ export default function Users() {
     }
   };
 
+  const [deletingUserId, setDeletingUserId] = useState(null);
+
   const handleToggleUserStatus = async (userId, currentActive) => {
     try {
       await API.put(`/users/${userId}`, { active: !currentActive });
@@ -81,6 +83,23 @@ export default function Users() {
       fetchUsers();
     } catch (err) {
       toast.error('Failed to update status.');
+    }
+  };
+
+  const handleDeleteUser = async (userId, userName) => {
+    if (!window.confirm(`Are you sure you want to permanently delete the user account for "${userName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingUserId(userId);
+    try {
+      await API.delete(`/users/${userId}`);
+      toast.success(`User "${userName}" deleted successfully.`);
+      fetchUsers();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete user account.');
+    } finally {
+      setDeletingUserId(null);
     }
   };
 
@@ -135,16 +154,26 @@ export default function Users() {
                       </span>
                     </td>
                     <td className="py-3.5 px-4 text-right">
-                      <button
-                        onClick={() => handleToggleUserStatus(u.id, u.active)}
-                        className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
-                          u.active
-                            ? 'bg-rose-50 text-rose-600 hover:bg-rose-100'
-                            : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                        }`}
-                      >
-                        {u.active ? 'Disable' : 'Enable'}
-                      </button>
+                      <div className="flex items-center justify-end space-x-2">
+                        <button
+                          onClick={() => handleToggleUserStatus(u.id, u.active)}
+                          className={`px-3 py-1 text-xs font-semibold rounded-lg transition-colors cursor-pointer ${
+                            u.active
+                              ? 'bg-rose-50 text-rose-600 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-400'
+                              : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-400'
+                          }`}
+                        >
+                          {u.active ? 'Disable' : 'Enable'}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteUser(u.id, `${u.firstName} ${u.lastName}`)}
+                          disabled={deletingUserId === u.id}
+                          className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                          title="Delete User Record"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

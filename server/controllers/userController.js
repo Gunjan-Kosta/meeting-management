@@ -107,3 +107,61 @@ export const updateUserStatus = async (req, res, next) => {
     next(error);
   }
 };
+
+export const deleteUser = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (req.user && req.user.id === id) {
+      return sendError(res, 'Cannot delete your own administrator account.', 400);
+    }
+
+    const userToDelete = await prisma.user.findUnique({ where: { id } });
+    if (!userToDelete) {
+      return sendError(res, 'User not found.', 404);
+    }
+
+    // Reassign any meetings created by this user to the acting admin
+    await prisma.meeting.updateMany({
+      where: { creatorId: id },
+      data: { creatorId: req.user.id },
+    });
+
+    // Reassign documents uploaded by this user to the acting admin
+    await prisma.meetingDocument.updateMany({
+      where: { uploadedById: id },
+      data: { uploadedById: req.user.id },
+    });
+
+    // Unassign user from action tracking items
+    await prisma.meetingActionTracker.updateMany({
+      where: { assignedUserId: id },
+      data: { assignedUserId: null },
+    });
+
+    // Unlink audit logs
+    await prisma.auditLog.updateMany({
+      where: { userId: id },
+      data: { userId: null },
+    });
+
+    // Delete the user record
+    await prisma.user.delete({
+      where: { id },
+    });
+
+    // Write audit log
+    await prisma.auditLog.create({
+      data: {
+        userId: req.user.id,
+        action: 'USER_DELETED',
+        details: `Deleted user account: ${userToDelete.firstName} ${userToDelete.lastName} (${userToDelete.email})`,
+        ipAddress: req.ip,
+      },
+    });
+
+    return sendSuccess(res, 'User account deleted successfully');
+  } catch (error) {
+    next(error);
+  }
+};
