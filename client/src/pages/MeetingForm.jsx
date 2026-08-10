@@ -20,9 +20,7 @@ export default function MeetingForm() {
   const [meetingTime, setMeetingTime] = useState('');
   const [venue, setVenue] = useState('');
   const [district, setDistrict] = useState('Bhopal');
-  const [chairperson, setChairperson] = useState('');
   const [description, setDescription] = useState('');
-  const [agenda, setAgenda] = useState('');
 
   // Dynamic Participants List
   const [participants, setParticipants] = useState([
@@ -41,9 +39,7 @@ export default function MeetingForm() {
           setMeetingTime(m.meetingTime || '');
           setVenue(m.venue || '');
           setDistrict(m.district || '');
-          setChairperson(m.chairperson || '');
           setDescription(m.description || '');
-          setAgenda(m.agenda || '');
           if (m.participants && m.participants.length > 0) {
             setParticipants(m.participants.map((p) => ({
               name: p.name || '',
@@ -93,9 +89,7 @@ export default function MeetingForm() {
         meetingTime,
         venue,
         district,
-        chairperson,
         description,
-        agenda,
         participants: participants.filter((p) => p.name.trim() !== ''),
       };
 
@@ -135,7 +129,7 @@ export default function MeetingForm() {
             {isEdit ? 'Edit Meeting Record' : 'Create New Meeting Record'}
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
-            Fill in official agenda, venue, and designated participants for tracking.
+            Fill in meeting details, venue, and designated participants for tracking.
           </p>
         </div>
       </div>
@@ -214,7 +208,7 @@ export default function MeetingForm() {
             />
           </div>
 
-          <div>
+          <div className="md:col-span-2">
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
               Venue / Location *
             </label>
@@ -224,19 +218,6 @@ export default function MeetingForm() {
               value={venue}
               onChange={(e) => setVenue(e.target.value)}
               placeholder="e.g. District Collectorate Conference Hall"
-              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-700/60 text-slate-900 dark:text-white text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-600"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-              Chairperson / Presiding Officer
-            </label>
-            <input
-              type="text"
-              value={chairperson}
-              onChange={(e) => setChairperson(e.target.value)}
-              placeholder="e.g. District Collector & Magistrate"
               className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-700/60 text-slate-900 dark:text-white text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-600"
             />
           </div>
@@ -251,19 +232,6 @@ export default function MeetingForm() {
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Provide background information or purpose of this meeting..."
               className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-700/60 text-slate-900 dark:text-white text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-600 focus:ring-2 focus:ring-blue-500 outline-hidden"
-            ></textarea>
-          </div>
-
-          <div className="md:col-span-2">
-            <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 mb-1.5">
-              Official Agenda & Key Topics
-            </label>
-            <textarea
-              rows={4}
-              value={agenda}
-              onChange={(e) => setAgenda(e.target.value)}
-              placeholder="1. Review of previous meeting action items&#10;2. Road infrastructure updates&#10;3. Compliance reporting"
-              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-700/60 text-slate-900 dark:text-white text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-600 focus:ring-2 focus:ring-blue-500 outline-hidden font-mono text-xs"
             ></textarea>
           </div>
         </div>
