@@ -3,18 +3,42 @@ import { sendSuccess } from '../utils/responseHandler.js';
 
 export const getAuditLogs = async (req, res, next) => {
   try {
-    const { action, userId, startDate, endDate, search, page = 1, limit = 20 } = req.query;
+    const { action, actions, userId, meetingId, startDate, endDate, search, page = 1, limit = 20 } = req.query;
 
-    const pageNum = parseInt(page, 10);
-    const limitNum = parseInt(limit, 10);
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const limitNum = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
     const skip = (pageNum - 1) * limitNum;
 
     const where = {};
-    if (action) where.action = action;
-    if (userId) where.userId = userId;
-    if (search) {
-      where.details = { contains: search, mode: 'insensitive' };
+
+    // Action filtering (single or comma-separated list)
+    if (actions) {
+      const actionList = Array.isArray(actions) ? actions : actions.split(',').map((a) => a.trim()).filter(Boolean);
+      if (actionList.length > 0) {
+        where.action = { in: actionList };
+      }
+    } else if (action) {
+      if (action.includes(',')) {
+        where.action = { in: action.split(',').map((a) => a.trim()).filter(Boolean) };
+      } else {
+        where.action = action;
+      }
     }
+
+    if (userId) where.userId = userId;
+    if (meetingId) where.meetingId = meetingId;
+
+    // Search filter across details, action, and ipAddress
+    if (search && search.trim()) {
+      const q = search.trim();
+      where.OR = [
+        { details: { contains: q, mode: 'insensitive' } },
+        { action: { contains: q, mode: 'insensitive' } },
+        { ipAddress: { contains: q, mode: 'insensitive' } },
+      ];
+    }
+
+    // Date range filter using indexed createdAt
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = new Date(startDate);
@@ -36,13 +60,17 @@ export const getAuditLogs = async (req, res, next) => {
       }),
     ]);
 
+    const totalPages = Math.ceil(total / limitNum) || 1;
+
     return sendSuccess(res, 'Audit logs fetched successfully', {
       logs,
       pagination: {
         total,
         page: pageNum,
         limit: limitNum,
-        totalPages: Math.ceil(total / limitNum),
+        totalPages,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1,
       },
     });
   } catch (error) {
