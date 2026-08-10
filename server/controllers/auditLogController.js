@@ -3,7 +3,7 @@ import { sendSuccess } from '../utils/responseHandler.js';
 
 export const getAuditLogs = async (req, res, next) => {
   try {
-    const { action, userId, startDate, endDate, page = 1, limit = 20 } = req.query;
+    const { action, userId, startDate, endDate, search, page = 1, limit = 20 } = req.query;
 
     const pageNum = parseInt(page, 10);
     const limitNum = parseInt(limit, 10);
@@ -12,6 +12,9 @@ export const getAuditLogs = async (req, res, next) => {
     const where = {};
     if (action) where.action = action;
     if (userId) where.userId = userId;
+    if (search) {
+      where.details = { contains: search, mode: 'insensitive' };
+    }
     if (startDate || endDate) {
       where.createdAt = {};
       if (startDate) where.createdAt.gte = new Date(startDate);

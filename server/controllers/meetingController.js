@@ -301,6 +301,37 @@ export const closeMeeting = async (req, res, next) => {
   }
 };
 
+export const reopenMeeting = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    const existingMeeting = await prisma.meeting.findUnique({ where: { id } });
+    if (!existingMeeting) {
+      return sendError(res, 'Meeting record not found.', 404);
+    }
+
+    if (existingMeeting.status === 'DRAFT') {
+      return sendError(res, 'Meeting is already in DRAFT status.', 400);
+    }
+
+    const meeting = await prisma.meeting.update({
+      where: { id },
+      data: { status: 'DRAFT' },
+    });
+
+    await recordAuditLog({
+      userId: req.user.id,
+      action: 'MEETING_REOPENED',
+      details: `Reopened meeting ${meeting.meetingCode} to DRAFT status`,
+      ipAddress: req.ip,
+    });
+
+    return sendSuccess(res, 'Meeting reopened to DRAFT status successfully', meeting);
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const deleteMeeting = async (req, res, next) => {
   try {
     const { id } = req.params;

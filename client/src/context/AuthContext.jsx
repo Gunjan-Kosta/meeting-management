@@ -68,6 +68,7 @@ export const AuthProvider = ({ children }) => {
     return meetingStatus === 'DRAFT';
   };
   const canCloseMeeting = isStateAdmin;
+  const canReopenMeeting = isStateAdmin;
   const canDeleteMeeting = isStateAdmin;
   const canUploadMom = (meetingStatus) => {
     if (isViewer) return false;
@@ -94,6 +95,7 @@ export const AuthProvider = ({ children }) => {
         canEditMeeting,
         canSubmitMeeting,
         canCloseMeeting,
+        canReopenMeeting,
         canDeleteMeeting,
         canUploadMom,
         canAddActionItem,

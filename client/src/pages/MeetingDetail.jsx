@@ -24,22 +24,41 @@ import {
   X,
   ExternalLink,
   Send,
+  Edit,
+  Lock,
+  RotateCcw,
+  History,
+  AlertCircle,
+  ShieldCheck,
 } from 'lucide-react';
 
 export default function MeetingDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, canUploadMom, canAddActionItem, canCloseMeeting, canSubmitMeeting } = useAuth();
+  const {
+    user,
+    isViewer,
+    canUploadMom,
+    canAddActionItem,
+    canEditMeeting,
+    canCloseMeeting,
+    canReopenMeeting,
+    canSubmitMeeting,
+    canDeleteMeeting,
+  } = useAuth();
 
   const [meeting, setMeeting] = useState(null);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
 
+  // Meeting Activity / Audit Logs
+  const [meetingLogs, setMeetingLogs] = useState([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
+
   // Document Upload Modal
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [docCategory, setDocCategory] = useState('MOM');
-  const [docTitle, setDocTitle] = useState('');
   const [docFile, setDocFile] = useState(null);
   const [uploading, setUploading] = useState(false);
 
@@ -60,13 +79,44 @@ export default function MeetingDetail() {
   const [newStatus, setNewStatus] = useState('IN_PROGRESS');
   const [remarks, setRemarks] = useState('');
 
-  // Delete Modals
+  // Edit Meeting Modal
+  const [showEditMeetingModal, setShowEditMeetingModal] = useState(false);
+  const [editMeetingData, setEditMeetingData] = useState({});
+  const [savingMeeting, setSavingMeeting] = useState(false);
+
+  // Edit Action Item Details Modal
+  const [showEditActionModal, setShowEditActionModal] = useState(false);
+  const [editActionData, setEditActionData] = useState({});
+  const [savingAction, setSavingAction] = useState(false);
+
+  // Delete / Action Modals
   const [deleteDocId, setDeleteDocId] = useState(null);
+  const [showDeleteMeetingConfirm, setShowDeleteMeetingConfirm] = useState(false);
+  const [showReopenConfirm, setShowReopenConfirm] = useState(false);
+
+  const fetchMeetingAuditLogs = async (code) => {
+    const meetingCode = code || meeting?.meetingCode;
+    if (!meetingCode) return;
+    try {
+      setLoadingLogs(true);
+      const res = await API.get('/audit-logs', {
+        params: { search: meetingCode, limit: 50 },
+      });
+      setMeetingLogs(res.data.data?.logs || []);
+    } catch (err) {
+      console.error('Failed to fetch meeting audit logs', err);
+    } finally {
+      setLoadingLogs(false);
+    }
+  };
 
   const fetchMeetingDetails = async () => {
     try {
       const res = await API.get(`/meetings/${id}`);
       setMeeting(res.data.data);
+      if (res.data.data?.meetingCode) {
+        fetchMeetingAuditLogs(res.data.data.meetingCode);
+      }
     } catch (err) {
       toast.error('Failed to load meeting details.');
       navigate('/meetings');
@@ -78,7 +128,7 @@ export default function MeetingDetail() {
   const fetchDepartments = async () => {
     try {
       const res = await API.get('/departments');
-      setDepartments(res.data.data);
+      setDepartments(res.data.data || []);
     } catch (err) {
       console.error(err);
     }
@@ -99,8 +149,54 @@ export default function MeetingDetail() {
     }
   };
 
+  const handleCloseMeeting = async () => {
+    try {
+      await API.patch(`/meetings/${id}/close`);
+      toast.success('Meeting closed successfully.');
+      fetchMeetingDetails();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to close meeting.');
+    }
+  };
+
+  const handleReopenMeeting = async () => {
+    try {
+      await API.patch(`/meetings/${id}/reopen`);
+      toast.success('Meeting reopened to DRAFT status successfully.');
+      setShowReopenConfirm(false);
+      fetchMeetingDetails();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to reopen meeting.');
+    }
+  };
+
+  const handleDeleteMeeting = async () => {
+    try {
+      await API.delete(`/meetings/${id}`);
+      toast.success('Meeting deleted successfully.');
+      navigate('/meetings');
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to delete meeting.');
+    }
+  };
+
+  const handleUpdateMeeting = async (e) => {
+    e.preventDefault();
+    setSavingMeeting(true);
+    try {
+      await API.put(`/meetings/${id}`, editMeetingData);
+      toast.success('Meeting details updated successfully.');
+      setShowEditMeetingModal(false);
+      fetchMeetingDetails();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update meeting.');
+    } finally {
+      setSavingMeeting(false);
+    }
+  };
+
   const handleOpenUploadModal = (category = 'MOM') => {
-    setDocCategory(category);
+    setDocCategory(category === 'ATTENDANCE' ? 'ATTENDANCE_SHEET' : category);
     setShowUploadModal(true);
   };
 
@@ -111,12 +207,19 @@ export default function MeetingDetail() {
       return;
     }
 
+    const allowedExts = ['.pdf', '.xlsx', '.docx', '.jpg', '.jpeg', '.png'];
+    const fileExt = '.' + (docFile.name.split('.').pop() || '').toLowerCase();
+    if (!allowedExts.includes(fileExt)) {
+      toast.error(`Invalid file format: ${fileExt}. Only PDF, XLSX, DOCX, JPEG, and PNG are allowed.`);
+      return;
+    }
+
     setUploading(true);
     try {
       const formData = new FormData();
-      formData.append('document', docFile);
+      formData.append('documents', docFile);
+      formData.append('fileType', docCategory);
       formData.append('category', docCategory);
-      if (docTitle) formData.append('title', docTitle);
 
       await API.post(`/meetings/${id}/documents`, formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -125,7 +228,6 @@ export default function MeetingDetail() {
       toast.success('Document uploaded successfully.');
       setShowUploadModal(false);
       setDocFile(null);
-      setDocTitle('');
       fetchMeetingDetails();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to upload document.');
@@ -156,17 +258,19 @@ export default function MeetingDetail() {
     setCreatingAction(true);
     try {
       await API.post(`/meetings/${id}/actions`, {
+        meetingId: id,
         title: actionTitle,
         description: actionDesc,
         assignedDepartmentId: assignedDeptId,
         targetDate,
-        priority,
       });
 
       toast.success('Action item assigned successfully.');
       setShowActionModal(false);
       setActionTitle('');
       setActionDesc('');
+      setAssignedDeptId('');
+      setTargetDate('');
       fetchMeetingDetails();
     } catch (err) {
       toast.error(err.response?.data?.message || 'Failed to assign action item.');
@@ -180,7 +284,7 @@ export default function MeetingDetail() {
     if (!statusModalAction) return;
 
     try {
-      await API.put(`/actions/${statusModalAction.id}/status`, {
+      await API.put(`/actions/${statusModalAction.id}`, {
         status: newStatus,
         remarks,
       });
@@ -193,15 +297,37 @@ export default function MeetingDetail() {
     }
   };
 
+  const handleUpdateActionDetails = async (e) => {
+    e.preventDefault();
+    setSavingAction(true);
+    try {
+      const payload = {
+        title: editActionData.title,
+        description: editActionData.description,
+        assignedDepartmentId: editActionData.assignedDepartmentId,
+        targetDate: editActionData.targetDate,
+      };
+      await API.put(`/actions/${editActionData.id}`, payload);
+      toast.success('Action details updated successfully.');
+      setShowEditActionModal(false);
+      fetchMeetingDetails();
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to update action item.');
+    } finally {
+      setSavingAction(false);
+    }
+  };
+
   if (loading) return <LoadingSkeleton type="form" count={6} />;
   if (!meeting) return null;
 
   // Categorized Document Groupings
   const docCategories = [
     { key: 'MOM', name: 'MoM', badge: 'REQUIRED FOR SUBMISSION', badgeColor: 'bg-amber-900/60 text-amber-300 border-amber-700/50' },
-    { key: 'ATTENDANCE', name: 'Attendance sheet (optional)', badge: 'OPTIONAL', badgeColor: 'bg-slate-800 text-slate-400 border-slate-700' },
+    { key: 'ATTENDANCE_SHEET', name: 'Attendance sheet (optional)', badge: 'OPTIONAL', badgeColor: 'bg-slate-800 text-slate-400 border-slate-700' },
     { key: 'AGENDA', name: 'Agenda Document', badge: 'OPTIONAL', badgeColor: 'bg-slate-800 text-slate-400 border-slate-700' },
-    { key: 'PROCEEDINGS', name: 'Proceedings & Annexures', badge: 'OPTIONAL', badgeColor: 'bg-slate-800 text-slate-400 border-slate-700' },
+    { key: 'PROCEEDINGS', name: 'Proceedings Document', badge: 'OPTIONAL', badgeColor: 'bg-slate-800 text-slate-400 border-slate-700' },
+    { key: 'SUPPORTING', name: 'Supporting Documents', badge: 'OPTIONAL', badgeColor: 'bg-slate-800 text-slate-400 border-slate-700' },
   ];
 
   return (
@@ -229,7 +355,7 @@ export default function MeetingDetail() {
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400 font-mono">
               <div className="flex items-center space-x-1.5">
                 <Calendar className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-                <span>{new Date(meeting.meetingDate).toLocaleDateString()}, {meeting.meetingTime || '10:28:00 PM'}</span>
+                <span>{new Date(meeting.meetingDate).toLocaleDateString()}</span>
               </div>
               <div className="flex items-center space-x-1.5 font-sans">
                 <MapPin className="w-3.5 h-3.5 text-slate-500 shrink-0" />
@@ -243,16 +369,69 @@ export default function MeetingDetail() {
           </div>
         </div>
 
-        {/* Right Header Action Button */}
-        {canSubmitMeeting(meeting.status) && (
-          <button
-            onClick={handleSubmitMeeting}
-            className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-lg shadow-blue-600/30 flex items-center space-x-2 transition-all cursor-pointer shrink-0 self-stretch sm:self-auto justify-center"
-          >
-            <Send className="w-4 h-4" />
-            <span>Submit Record</span>
-          </button>
-        )}
+        {/* Right Header Action Buttons */}
+        <div className="flex flex-wrap items-center gap-3 shrink-0 self-stretch sm:self-auto justify-end">
+          {canEditMeeting(meeting.status) && (
+            <button
+              onClick={() => {
+                setEditMeetingData({
+                  title: meeting.title,
+                  description: meeting.description,
+                  meetingType: meeting.meetingType,
+                  meetingDate: meeting.meetingDate ? meeting.meetingDate.split('T')[0] : '',
+                  venue: meeting.venue,
+                  district: meeting.district,
+                });
+                setShowEditMeetingModal(true);
+              }}
+              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-blue-400 border border-slate-700/80 text-xs sm:text-sm font-semibold rounded-xl flex items-center space-x-2 transition-all cursor-pointer"
+            >
+              <Edit className="w-4 h-4" />
+              <span>Edit</span>
+            </button>
+          )}
+
+          {canReopenMeeting && meeting.status !== 'DRAFT' && (
+            <button
+              onClick={() => setShowReopenConfirm(true)}
+              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-amber-400 border border-slate-700/80 text-xs sm:text-sm font-semibold rounded-xl flex items-center space-x-2 transition-all cursor-pointer"
+              title="Reopen meeting record back to DRAFT"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Reopen</span>
+            </button>
+          )}
+
+          {canCloseMeeting && meeting.status !== 'CLOSED' && (
+            <button
+              onClick={handleCloseMeeting}
+              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-emerald-400 border border-slate-700/80 text-xs sm:text-sm font-semibold rounded-xl flex items-center space-x-2 transition-all cursor-pointer"
+            >
+              <Lock className="w-4 h-4" />
+              <span className="hidden sm:inline">Close</span>
+            </button>
+          )}
+
+          {canSubmitMeeting(meeting.status) && (
+            <button
+              onClick={handleSubmitMeeting}
+              className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs sm:text-sm font-semibold rounded-xl shadow-lg shadow-blue-600/30 flex items-center space-x-2 transition-all cursor-pointer"
+            >
+              <Send className="w-4 h-4" />
+              <span>Submit Record</span>
+            </button>
+          )}
+
+          {canDeleteMeeting && (
+            <button
+              onClick={() => setShowDeleteMeetingConfirm(true)}
+              className="px-4 py-2.5 bg-slate-800 hover:bg-slate-700 text-rose-400 border border-slate-700/80 text-xs sm:text-sm font-semibold rounded-xl flex items-center space-x-2 transition-all cursor-pointer"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span className="hidden sm:inline">Delete</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 2. TABS BAR */}
@@ -263,6 +442,7 @@ export default function MeetingDetail() {
             { id: 'documents', label: `Documents (${meeting.documents?.length || 0})` },
             { id: 'actions', label: `Action Tracker (${meeting.actionItems?.length || 0})` },
             { id: 'participants', label: `Participants (${meeting.participants?.length || 0})` },
+            { id: 'activity', label: `Activity History (${meetingLogs?.length || 0})` },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -285,7 +465,7 @@ export default function MeetingDetail() {
           <div>
             <h3 className="text-sm sm:text-base font-bold text-white mb-2">Meeting Description & Agendas</h3>
             <p className="text-xs sm:text-sm text-slate-300 whitespace-pre-wrap leading-relaxed">
-              {meeting.description || meeting.agenda || 'No description or agenda detailed.'}
+              {meeting.description || 'No description or agenda detailed.'}
             </p>
           </div>
 
@@ -323,13 +503,13 @@ export default function MeetingDetail() {
                 <h3 className="text-sm sm:text-base font-bold text-white">Document Submissions</h3>
               </div>
               <p className="text-xs text-slate-400 mt-1">
-                Official MoM, Attendance Sheet, Agenda, Proceedings & Supporting documents (PDF, DOCX, XLSX up to 10MB each).
+                Official MoM, Attendance Sheet, Agenda, Proceedings & Supporting documents (PDF, XLSX, DOCX, JPEG, PNG up to 10MB each, max 10 files).
               </p>
             </div>
 
             <div className="flex items-center space-x-3 shrink-0 self-start sm:self-auto">
               <span className="px-3 py-1.5 bg-slate-800 border border-slate-700 text-blue-400 text-xs font-mono font-bold rounded-lg">
-                {meeting.documents?.length || 0} / 10 Documents Submitted
+                {meeting.documents?.length || 0} / 10 Documents Uploaded
               </span>
               {canUploadMom(meeting.status) && (
                 <button
@@ -346,7 +526,14 @@ export default function MeetingDetail() {
           {/* Categorized Document Groups */}
           <div className="space-y-4">
             {docCategories.map((cat) => {
-              const catDocs = (meeting.documents || []).filter((d) => d.category === cat.key || (cat.key === 'MOM' && !d.category));
+              const catDocs = (meeting.documents || []).filter((d) => {
+                const t = d.fileType || d.category || 'SUPPORTING';
+                if (cat.key === 'ATTENDANCE_SHEET') {
+                  return t === 'ATTENDANCE_SHEET' || t === 'ATTENDANCE';
+                }
+                return t === cat.key;
+              });
+
               return (
                 <div
                   key={cat.key}
@@ -380,52 +567,60 @@ export default function MeetingDetail() {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {catDocs.map((doc) => (
-                        <div
-                          key={doc.id}
-                          className="bg-slate-800/80 border border-slate-700/80 rounded-xl p-3.5 flex items-center justify-between gap-3 group hover:border-blue-500/50 transition-colors"
-                        >
-                          <div className="flex items-center space-x-3 min-w-0">
-                            <div className="p-2 bg-blue-600/20 border border-blue-500/30 text-blue-400 rounded-lg shrink-0">
-                              <FileText className="w-4 h-4" />
+                      {catDocs.map((doc) => {
+                        const displayName = doc.name || doc.title || doc.fileName || 'Document';
+                        const fileSrc = doc.filePath || doc.fileUrl;
+                        return (
+                          <div
+                            key={doc.id}
+                            className="bg-slate-800/80 border border-slate-700/80 rounded-xl p-3.5 flex items-center justify-between gap-3 group hover:border-blue-500/50 transition-colors"
+                          >
+                            <div className="flex items-center space-x-3 min-w-0">
+                              <div className="p-2 bg-blue-600/20 border border-blue-500/30 text-blue-400 rounded-lg shrink-0">
+                                <FileText className="w-4 h-4" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-white truncate group-hover:text-blue-300 transition-colors">
+                                  {displayName}
+                                </p>
+                                <p className="text-[10px] font-mono text-slate-400">
+                                  {(doc.fileSize / (1024 * 1024)).toFixed(2)} MB • Uploaded {new Date(doc.createdAt).toLocaleDateString()}
+                                  {doc.uploadedBy && ` by ${doc.uploadedBy.firstName || 'User'}`}
+                                </p>
+                              </div>
                             </div>
-                            <div className="min-w-0">
-                              <p className="text-xs font-semibold text-white truncate group-hover:text-blue-300 transition-colors">
-                                {doc.title || doc.fileName}
-                              </p>
-                              <p className="text-[10px] font-mono text-slate-400">
-                                {(doc.fileSize / (1024 * 1024)).toFixed(2)} MB • Uploaded {new Date(doc.createdAt).toLocaleDateString()}
-                              </p>
-                            </div>
-                          </div>
 
-                          <div className="flex items-center space-x-1 shrink-0">
-                            <button
-                              onClick={() => setPreviewDoc(doc)}
-                              className="p-1.5 text-slate-400 hover:text-blue-400 rounded-lg hover:bg-slate-700 cursor-pointer"
-                              title="Preview Document"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </button>
-                            <a
-                              href={doc.fileUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-slate-700 cursor-pointer"
-                              title="Download File"
-                            >
-                              <Download className="w-4 h-4" />
-                            </a>
-                            <button
-                              onClick={() => setDeleteDocId(doc.id)}
-                              className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700 cursor-pointer"
-                              title="Delete File"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                            <div className="flex items-center space-x-1 shrink-0">
+                              <button
+                                onClick={() => setPreviewDoc(doc)}
+                                className="p-1.5 text-slate-400 hover:text-blue-400 rounded-lg hover:bg-slate-700 cursor-pointer"
+                                title="Preview Document"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <a
+                                href={fileSrc}
+                                download={displayName}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-slate-700 cursor-pointer"
+                                title="Download File"
+                              >
+                                <Download className="w-4 h-4" />
+                              </a>
+                              {!isViewer && (
+                                <button
+                                  onClick={() => setDeleteDocId(doc.id)}
+                                  className="p-1.5 text-slate-400 hover:text-rose-400 rounded-lg hover:bg-slate-700 cursor-pointer"
+                                  title="Delete File"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -469,24 +664,54 @@ export default function MeetingDetail() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-mono text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-                        {action.assignedDepartment?.code}
+                        {action.assignedDepartment?.code || 'DEPT'}
                       </span>
                       <Badge status={action.status} />
                     </div>
                     <h4 className="text-xs sm:text-sm font-bold text-slate-900 dark:text-white">{action.title}</h4>
                     <p className="text-xs text-slate-500 line-clamp-2">{action.description || 'No description'}</p>
+                    {action.remarks && (
+                      <div className="p-2 bg-slate-50 dark:bg-slate-900/50 rounded text-[11px] text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700/50">
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">Remarks: </span>
+                        {action.remarks}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-xs">
-                    <span className="text-[11px] font-bold text-rose-600">
+                  <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span className="text-[11px] font-bold text-rose-500 font-mono">
                       Due: {new Date(action.targetDate).toLocaleDateString()}
                     </span>
-                    <button
-                      onClick={() => setStatusModalAction(action)}
-                      className="px-2.5 py-1 text-xs font-semibold bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-800 dark:text-slate-200 rounded-lg cursor-pointer"
-                    >
-                      Update Status
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      {canAddActionItem(meeting.status) && (
+                        <button
+                          onClick={() => {
+                            setEditActionData({
+                              id: action.id,
+                              title: action.title,
+                              description: action.description || '',
+                              assignedDepartmentId: action.assignedDepartmentId,
+                              targetDate: action.targetDate ? action.targetDate.split('T')[0] : '',
+                            });
+                            setShowEditActionModal(true);
+                          }}
+                          className="px-2.5 py-1 text-xs font-semibold bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 text-slate-500 dark:text-slate-400 rounded-lg cursor-pointer flex items-center space-x-1"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                          <span>Edit</span>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => {
+                          setStatusModalAction(action);
+                          setNewStatus(action.status || 'IN_PROGRESS');
+                          setRemarks(action.remarks || '');
+                        }}
+                        className="px-2.5 py-1 text-xs font-semibold bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 text-blue-600 dark:text-blue-400 rounded-lg cursor-pointer"
+                      >
+                        Update Status
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -520,9 +745,63 @@ export default function MeetingDetail() {
                     </td>
                   </tr>
                 ))}
+                {(!meeting.participants || meeting.participants.length === 0) && (
+                  <tr>
+                    <td colSpan={4} className="py-6 text-center text-xs text-slate-500">
+                      No participants recorded for this meeting.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {/* TAB 5: ACTIVITY / AUDIT HISTORY */}
+      {activeTab === 'activity' && (
+        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+            <div className="flex items-center space-x-2">
+              <History className="w-5 h-5 text-blue-400" />
+              <h3 className="text-sm sm:text-base font-bold text-white">Meeting Audit Trail & Activity Log</h3>
+            </div>
+            <span className="text-xs text-slate-400 font-mono font-bold">
+              {meetingLogs.length} Event{meetingLogs.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+
+          {loadingLogs ? (
+            <div className="py-8 text-center text-xs text-slate-400">Loading activity trail...</div>
+          ) : meetingLogs.length === 0 ? (
+            <div className="py-8 text-center text-xs text-slate-500">
+              No audit logs recorded for meeting code {meeting.meetingCode}.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {meetingLogs.map((log) => (
+                <div
+                  key={log.id}
+                  className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3.5 flex items-start justify-between gap-3"
+                >
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800/50">
+                        {log.action}
+                      </span>
+                      <span className="text-xs text-slate-300 font-medium">{log.details}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">
+                      User: <span className="text-slate-200 font-semibold">{log.user ? `${log.user.firstName} ${log.user.lastName} (${log.user.email})` : 'System'}</span>
+                    </p>
+                  </div>
+                  <span className="text-[10px] font-mono text-slate-400 shrink-0">
+                    {new Date(log.createdAt).toLocaleString()}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -533,11 +812,12 @@ export default function MeetingDetail() {
             <div className="px-4 py-3 bg-slate-900 text-white flex items-center justify-between shrink-0 border-b border-slate-800">
               <div className="flex items-center space-x-2 min-w-0">
                 <FileText className="w-5 h-5 text-blue-400 shrink-0" />
-                <h3 className="text-xs sm:text-sm font-bold truncate">{previewDoc.title || previewDoc.fileName}</h3>
+                <h3 className="text-xs sm:text-sm font-bold truncate">{previewDoc.name || previewDoc.title || previewDoc.fileName}</h3>
               </div>
               <div className="flex items-center space-x-2">
                 <a
-                  href={previewDoc.fileUrl}
+                  href={previewDoc.filePath || previewDoc.fileUrl}
+                  download={previewDoc.name || previewDoc.title || previewDoc.fileName}
                   target="_blank"
                   rel="noreferrer"
                   className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg flex items-center space-x-1"
@@ -552,10 +832,18 @@ export default function MeetingDetail() {
             </div>
 
             <div className="flex-1 bg-slate-900 p-2 overflow-auto flex items-center justify-center">
-              {previewDoc.fileName.match(/\.(jpg|jpeg|png|webp)$/i) ? (
-                <img src={previewDoc.fileUrl} alt={previewDoc.title} className="max-w-full max-h-full object-contain rounded-lg" />
+              {(previewDoc.name || previewDoc.fileName || previewDoc.filePath || '').match(/\.(jpg|jpeg|png)$/i) ? (
+                <img
+                  src={previewDoc.filePath || previewDoc.fileUrl}
+                  alt={previewDoc.name || previewDoc.title || 'Document'}
+                  className="max-w-full max-h-full object-contain rounded-lg"
+                />
               ) : (
-                <iframe src={previewDoc.fileUrl} title="Document Preview" className="w-full h-full border-0 rounded-lg bg-white" />
+                <iframe
+                  src={previewDoc.filePath || previewDoc.fileUrl}
+                  title="Document Preview"
+                  className="w-full h-full border-0 rounded-lg bg-white"
+                />
               )}
             </div>
           </div>
@@ -579,31 +867,20 @@ export default function MeetingDetail() {
                   onChange={(e) => setDocCategory(e.target.value)}
                   className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
                 >
-                  <option value="MOM">Minutes of Meeting (MoM)</option>
-                  <option value="ATTENDANCE">Attendance Sheet</option>
-                  <option value="AGENDA">Official Agenda Document</option>
-                  <option value="PROCEEDINGS">Proceedings & Annexures</option>
-                  <option value="OTHER">Other Annexure Document</option>
+                  <option value="MOM">MoM (Required for Submission)</option>
+                  <option value="ATTENDANCE_SHEET">Attendance sheet (optional)</option>
+                  <option value="AGENDA">Agenda Document</option>
+                  <option value="PROCEEDINGS">Proceedings Document</option>
+                  <option value="SUPPORTING">Supporting Documents</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Document Title</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Official Signed Minutes of Meeting"
-                  value={docTitle}
-                  onChange={(e) => setDocTitle(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Select File (PDF, Office, Images up to 10MB) *</label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Select File (PDF, XLSX, DOCX, JPEG, PNG up to 10MB) *</label>
                 <input
                   type="file"
                   required
-                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png,.webp"
+                  accept=".pdf,.xlsx,.docx,.jpg,.jpeg,.png"
                   onChange={(e) => setDocFile(e.target.files[0])}
                   className="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                 />
@@ -667,30 +944,15 @@ export default function MeetingDetail() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Target Date *</label>
-                  <input
-                    type="date"
-                    required
-                    value={targetDate}
-                    onChange={(e) => setTargetDate(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Priority</label>
-                  <select
-                    value={priority}
-                    onChange={(e) => setPriority(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
-                  >
-                    <option value="LOW">Low</option>
-                    <option value="MEDIUM">Medium</option>
-                    <option value="HIGH">High</option>
-                    <option value="URGENT">Urgent</option>
-                  </select>
-                </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Target Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={targetDate}
+                  onChange={(e) => setTargetDate(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
+                />
               </div>
 
               <div>
@@ -699,6 +961,7 @@ export default function MeetingDetail() {
                   rows={3}
                   value={actionDesc}
                   onChange={(e) => setActionDesc(e.target.value)}
+                  placeholder="Details of the assigned responsibility..."
                   className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
                 ></textarea>
               </div>
@@ -744,7 +1007,6 @@ export default function MeetingDetail() {
                   <option value="PENDING">Pending</option>
                   <option value="IN_PROGRESS">In Progress</option>
                   <option value="COMPLETED">Completed</option>
-                  <option value="OVERDUE">Overdue</option>
                 </select>
               </div>
 
@@ -754,7 +1016,7 @@ export default function MeetingDetail() {
                   rows={3}
                   value={remarks}
                   onChange={(e) => setRemarks(e.target.value)}
-                  placeholder="Details of action taken or reasons for delay..."
+                  placeholder="Details of action taken or progress notes..."
                   className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
                 ></textarea>
               </div>
@@ -779,13 +1041,202 @@ export default function MeetingDetail() {
         </div>
       )}
 
+      {/* Reopen Meeting Confirm Modal */}
+      <ConfirmModal
+        isOpen={showReopenConfirm}
+        onClose={() => setShowReopenConfirm(false)}
+        onConfirm={handleReopenMeeting}
+        title="Reopen Meeting Record"
+        message="Are you sure you want to reopen this meeting? It will transition back to DRAFT status allowing modifications and document updates."
+        confirmText="Reopen Meeting"
+      />
+
+      {/* Delete Meeting Confirm Modal */}
+      <ConfirmModal
+        isOpen={showDeleteMeetingConfirm}
+        onClose={() => setShowDeleteMeetingConfirm(false)}
+        onConfirm={handleDeleteMeeting}
+        title="Delete Meeting"
+        message="Are you sure you want to permanently delete this meeting? This action cannot be undone."
+        danger={true}
+      />
+
+      {/* EDIT MEETING MODAL */}
+      {showEditMeetingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 w-[calc(100%-2rem)] max-w-2xl p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Edit Meeting Details</h3>
+              <button onClick={() => setShowEditMeetingModal(false)}><X className="w-5 h-5 text-slate-400" /></button>
+            </div>
+            <form onSubmit={handleUpdateMeeting} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Meeting Title *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editMeetingData.title || ''}
+                    onChange={(e) => setEditMeetingData({...editMeetingData, title: e.target.value})}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Meeting Type *</label>
+                  <select
+                    required
+                    value={editMeetingData.meetingType || ''}
+                    onChange={(e) => setEditMeetingData({...editMeetingData, meetingType: e.target.value})}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
+                  >
+                    <option value="">Select Type</option>
+                    <option value="DISTRICT_LEVEL">District Level Meeting</option>
+                    <option value="SANSAD">Sansad Meeting</option>
+                    <option value="RAJYA_SADAK_SURAKSHA">Rajya Sadak Suraksha Parishad</option>
+                    <option value="SAMIKSHA_BAITHAK">Samiksha Baithak</option>
+                    <option value="MANTRI_PARISHAD">Mantri Parishad Meeting</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Meeting Date *</label>
+                  <input
+                    type="date"
+                    required
+                    value={editMeetingData.meetingDate || ''}
+                    onChange={(e) => setEditMeetingData({...editMeetingData, meetingDate: e.target.value})}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Venue *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editMeetingData.venue || ''}
+                    onChange={(e) => setEditMeetingData({...editMeetingData, venue: e.target.value})}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">District *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editMeetingData.district || ''}
+                    onChange={(e) => setEditMeetingData({...editMeetingData, district: e.target.value})}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Description / Agendas</label>
+                  <textarea
+                    rows={4}
+                    value={editMeetingData.description || ''}
+                    onChange={(e) => setEditMeetingData({...editMeetingData, description: e.target.value})}
+                    className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
+                  ></textarea>
+                </div>
+              </div>
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setShowEditMeetingModal(false)}
+                  className="px-4 py-2 text-xs font-semibold bg-slate-100 dark:bg-slate-700 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingMeeting}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
+                >
+                  {savingMeeting ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT ACTION ITEM DETAILS MODAL */}
+      {showEditActionModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 w-[calc(100%-2rem)] max-w-lg p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-base font-bold text-slate-900 dark:text-white">Edit Action Item Details</h3>
+              <button onClick={() => setShowEditActionModal(false)}><X className="w-5 h-5 text-slate-400" /></button>
+            </div>
+            <form onSubmit={handleUpdateActionDetails} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Task Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={editActionData.title || ''}
+                  onChange={(e) => setEditActionData({...editActionData, title: e.target.value})}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Assign to Department *</label>
+                <select
+                  required
+                  value={editActionData.assignedDepartmentId || ''}
+                  onChange={(e) => setEditActionData({...editActionData, assignedDepartmentId: e.target.value})}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
+                >
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Target Date *</label>
+                <input
+                  type="date"
+                  required
+                  value={editActionData.targetDate || ''}
+                  onChange={(e) => setEditActionData({...editActionData, targetDate: e.target.value})}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Action Description & Remarks</label>
+                <textarea
+                  rows={3}
+                  value={editActionData.description || ''}
+                  onChange={(e) => setEditActionData({...editActionData, description: e.target.value})}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 dark:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-600"
+                ></textarea>
+              </div>
+              <div className="flex items-center justify-end space-x-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setShowEditActionModal(false)}
+                  className="px-4 py-2 text-xs font-semibold bg-slate-100 dark:bg-slate-700 rounded-lg"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingAction}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg disabled:opacity-50"
+                >
+                  {savingAction ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Delete Document Modal */}
       <ConfirmModal
         isOpen={!!deleteDocId}
         onClose={() => setDeleteDocId(null)}
         onConfirm={handleDeleteDocument}
         title="Delete Document"
-        message="Are you sure you want to delete this document?"
+        message="Are you sure you want to delete this document from the meeting record?"
         danger={true}
       />
     </div>

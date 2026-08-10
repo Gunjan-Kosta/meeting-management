@@ -11,7 +11,7 @@ router.use(authenticateToken);
 router.post(
   '/upload/:meetingId',
   checkRole(['STATE_ADMIN', 'DISTRICT_USER']),
-  upload.array('documents', 10),
+  upload.any(),
   uploadDocuments
 );
 

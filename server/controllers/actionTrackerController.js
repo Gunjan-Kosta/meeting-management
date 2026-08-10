@@ -4,7 +4,8 @@ import { recordAuditLog } from '../services/auditService.js';
 
 export const createActionItem = async (req, res, next) => {
   try {
-    const { meetingId, title, description, assignedDepartmentId, assignedUserId, targetDate, remarks } = req.body;
+    const { title, description, assignedDepartmentId, assignedUserId, targetDate, remarks } = req.body;
+    const meetingId = req.body.meetingId || req.params.id || req.params.meetingId;
 
     if (!meetingId || !title || !assignedDepartmentId || !targetDate) {
       return sendError(res, 'Meeting ID, Title, Assigned Department, and Target Date are required.', 400);

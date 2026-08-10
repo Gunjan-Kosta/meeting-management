@@ -7,10 +7,18 @@ import { MAX_FILE_COUNT } from '../utils/fileValidator.js';
 
 export const uploadDocuments = async (req, res, next) => {
   try {
-    const { meetingId } = req.params;
-    const { fileType } = req.body; // MOM, ATTENDANCE_SHEET, AGENDA, PROCEEDINGS, SUPPORTING
+    const meetingId = req.params.meetingId || req.params.id;
+    let rawType = req.body.fileType || req.body.category || 'SUPPORTING';
+    if (rawType === 'ATTENDANCE') rawType = 'ATTENDANCE_SHEET';
+    const fileType = ['MOM', 'ATTENDANCE_SHEET', 'AGENDA', 'PROCEEDINGS', 'SUPPORTING'].includes(rawType)
+      ? rawType
+      : 'SUPPORTING';
 
-    if (!req.files || req.files.length === 0) {
+    const files = req.files && Array.isArray(req.files) && req.files.length > 0
+      ? req.files
+      : (req.file ? [req.file] : []);
+
+    if (files.length === 0) {
       return sendError(res, 'No files were uploaded.', 400);
     }
 
@@ -29,7 +37,7 @@ export const uploadDocuments = async (req, res, next) => {
     }
 
     const currentDocCount = meeting._count.documents;
-    if (currentDocCount + req.files.length > MAX_FILE_COUNT) {
+    if (currentDocCount + files.length > MAX_FILE_COUNT) {
       return sendError(
         res,
         `Maximum file count exceeded. A meeting can hold up to ${MAX_FILE_COUNT} files. Current: ${currentDocCount}`,
@@ -39,24 +47,24 @@ export const uploadDocuments = async (req, res, next) => {
 
     const createdDocs = [];
 
-    for (const file of req.files) {
+    for (const file of files) {
       const doc = await prisma.meetingDocument.create({
         data: {
           meetingId,
           name: file.originalname,
           filePath: `/uploads/${file.filename}`,
-          fileType: fileType || 'SUPPORTING',
+          fileType: fileType,
           fileSize: file.size,
           uploadedById: req.user.id,
         },
       });
       createdDocs.push(doc);
 
-      const isMoM = (fileType || 'SUPPORTING') === 'MOM';
+      const isMoM = fileType === 'MOM';
       await recordAuditLog({
         userId: req.user.id,
         action: isMoM ? 'MOM_UPLOADED' : 'DOCUMENT_UPLOADED',
-        details: `Uploaded ${fileType || 'SUPPORTING'} document "${file.originalname}" to meeting ${meeting.meetingCode}`,
+        details: `Uploaded ${fileType} document "${file.originalname}" to meeting ${meeting.meetingCode}`,
         ipAddress: req.ip,
       });
     }
