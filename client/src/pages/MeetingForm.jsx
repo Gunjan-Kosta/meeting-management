@@ -34,9 +34,18 @@ export default function MeetingForm() {
           const res = await API.get(`/meetings/${id}`);
           const m = res.data.data;
           setTitle(m.title);
-          setMeetingType(m.meetingType);
-          setMeetingDate(m.meetingDate ? m.meetingDate.split('T')[0] : '');
-          setMeetingTime(m.meetingTime || '');
+          setMeetingType(m.meetingType || 'DISTRICT_LEVEL');
+          if (m.meetingDate) {
+            const d = new Date(m.meetingDate);
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+            const hours = String(d.getHours()).padStart(2, '0');
+            const minutes = String(d.getMinutes()).padStart(2, '0');
+            const timeStr = `${hours}:${minutes}`;
+            setMeetingDate(dateStr);
+            if (timeStr !== '00:00') {
+              setMeetingTime(timeStr);
+            }
+          }
           setVenue(m.venue || '');
           setDistrict(m.district || '');
           setDescription(m.description || '');
@@ -82,11 +91,14 @@ export default function MeetingForm() {
 
     setSubmitting(true);
     try {
+      const finalMeetingDate = meetingTime
+        ? `${meetingDate}T${meetingTime}:00`
+        : `${meetingDate}T10:00:00`;
+
       const payload = {
         title,
         meetingType,
-        meetingDate,
-        meetingTime,
+        meetingDate: finalMeetingDate,
         venue,
         district,
         description,
@@ -200,11 +212,10 @@ export default function MeetingForm() {
               Scheduled Time
             </label>
             <input
-              type="text"
+              type="time"
               value={meetingTime}
               onChange={(e) => setMeetingTime(e.target.value)}
-              placeholder="e.g. 11:00 AM"
-              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-700/60 text-slate-900 dark:text-white text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-600"
+              className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-700/60 text-slate-900 dark:text-white text-xs sm:text-sm rounded-lg border border-slate-200 dark:border-slate-600 focus:ring-2 focus:ring-blue-500 outline-hidden"
             />
           </div>
 
