@@ -27,7 +27,6 @@ import {
   Edit,
   Lock,
   RotateCcw,
-  History,
   AlertCircle,
   ShieldCheck,
 } from 'lucide-react';
@@ -51,10 +50,6 @@ export default function MeetingDetail() {
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
-
-  // Meeting Activity / Audit Logs
-  const [meetingLogs, setMeetingLogs] = useState([]);
-  const [loadingLogs, setLoadingLogs] = useState(false);
 
   // Document Upload Modal
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -93,30 +88,10 @@ export default function MeetingDetail() {
   const [deleteDocId, setDeleteDocId] = useState(null);
   const [showDeleteMeetingConfirm, setShowDeleteMeetingConfirm] = useState(false);
   const [showReopenConfirm, setShowReopenConfirm] = useState(false);
-
-  const fetchMeetingAuditLogs = async (code) => {
-    const meetingCode = code || meeting?.meetingCode;
-    if (!meetingCode) return;
-    try {
-      setLoadingLogs(true);
-      const res = await API.get('/audit-logs', {
-        params: { search: meetingCode, limit: 50 },
-      });
-      setMeetingLogs(res.data.data?.logs || []);
-    } catch (err) {
-      console.error('Failed to fetch meeting audit logs', err);
-    } finally {
-      setLoadingLogs(false);
-    }
-  };
-
   const fetchMeetingDetails = async () => {
     try {
       const res = await API.get(`/meetings/${id}`);
       setMeeting(res.data.data);
-      if (res.data.data?.meetingCode) {
-        fetchMeetingAuditLogs(res.data.data.meetingCode);
-      }
     } catch (err) {
       toast.error('Failed to load meeting details.');
       navigate('/meetings');
@@ -442,7 +417,6 @@ export default function MeetingDetail() {
             { id: 'documents', label: `Documents (${meeting.documents?.length || 0})` },
             { id: 'actions', label: `Action Tracker (${meeting.actionItems?.length || 0})` },
             { id: 'participants', label: `Participants (${meeting.participants?.length || 0})` },
-            { id: 'activity', label: `Activity History (${meetingLogs?.length || 0})` },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -760,53 +734,6 @@ export default function MeetingDetail() {
               </tbody>
             </table>
           </div>
-        </div>
-      )}
-
-      {/* TAB 5: ACTIVITY / AUDIT HISTORY */}
-      {activeTab === 'activity' && (
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-5 sm:p-6 shadow-xl space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-            <div className="flex items-center space-x-2">
-              <History className="w-5 h-5 text-blue-400" />
-              <h3 className="text-sm sm:text-base font-bold text-white">Meeting Audit Trail & Activity Log</h3>
-            </div>
-            <span className="text-xs text-slate-400 font-mono font-bold">
-              {meetingLogs.length} Event{meetingLogs.length !== 1 ? 's' : ''}
-            </span>
-          </div>
-
-          {loadingLogs ? (
-            <div className="py-8 text-center text-xs text-slate-400">Loading activity trail...</div>
-          ) : meetingLogs.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-500">
-              No audit logs recorded for meeting code {meeting.meetingCode}.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {meetingLogs.map((log) => (
-                <div
-                  key={log.id}
-                  className="bg-slate-800/60 border border-slate-700/60 rounded-xl p-3.5 flex items-start justify-between gap-3"
-                >
-                  <div className="space-y-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-blue-950 text-blue-300 border border-blue-800/50">
-                        {log.action}
-                      </span>
-                      <span className="text-xs text-slate-300 font-medium">{log.details}</span>
-                    </div>
-                    <p className="text-[11px] text-slate-400">
-                      User: <span className="text-slate-200 font-semibold">{log.user ? `${log.user.firstName} ${log.user.lastName} (${log.user.email})` : 'System'}</span>
-                    </p>
-                  </div>
-                  <span className="text-[10px] font-mono text-slate-400 shrink-0">
-                    {new Date(log.createdAt).toLocaleString()}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
         </div>
       )}
 
