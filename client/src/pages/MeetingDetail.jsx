@@ -569,7 +569,12 @@ export default function MeetingDetail() {
                     <div className="space-y-2">
                       {catDocs.map((doc) => {
                         const displayName = doc.name || doc.title || doc.fileName || 'Document';
-                        const fileSrc = getFileUrl(doc.filePath || doc.fileUrl);
+                        const fileSrc = doc.id
+                          ? getFileUrl(`/api/documents/${doc.id}/file`)
+                          : getFileUrl(doc.filePath || doc.fileUrl);
+                        const downloadUrl = doc.id
+                          ? getFileUrl(`/api/documents/${doc.id}/download`)
+                          : getFileUrl(doc.filePath || doc.fileUrl);
                         return (
                           <div
                             key={doc.id}
@@ -599,7 +604,7 @@ export default function MeetingDetail() {
                                 <Eye className="w-4 h-4" />
                               </button>
                               <a
-                                href={fileSrc}
+                                href={downloadUrl}
                                 download={displayName}
                                 target="_blank"
                                 rel="noreferrer"
@@ -808,7 +813,12 @@ export default function MeetingDetail() {
       {/* DOCUMENT PREVIEW MODAL */}
       {previewDoc && (() => {
         const docName = previewDoc.name || previewDoc.title || previewDoc.fileName || 'Document';
-        const fileSrc = getFileUrl(previewDoc.filePath || previewDoc.fileUrl);
+        const fileSrc = previewDoc.id
+          ? getFileUrl(`/api/documents/${previewDoc.id}/file`)
+          : getFileUrl(previewDoc.filePath || previewDoc.fileUrl);
+        const downloadUrl = previewDoc.id
+          ? getFileUrl(`/api/documents/${previewDoc.id}/download`)
+          : getFileUrl(previewDoc.filePath || previewDoc.fileUrl);
         const ext = (docName.split('.').pop() || '').toLowerCase();
         const isImage = ['jpg', 'jpeg', 'png'].includes(ext);
         const isPdf = ext === 'pdf';
@@ -837,7 +847,7 @@ export default function MeetingDetail() {
                     <span className="hidden sm:inline">Open Original</span>
                   </a>
                   <a
-                    href={fileSrc}
+                    href={downloadUrl}
                     download={docName}
                     className="p-1.5 text-slate-400 hover:text-emerald-400 rounded-lg hover:bg-slate-800 transition-colors"
                     title="Download File"

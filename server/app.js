@@ -19,6 +19,8 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
 import { initCronJobs } from './services/cronService.js';
 import { seedDatabase } from './seed.js';
+import prisma from './config/db.js';
+import { getMimeType } from './utils/fileValidator.js';
 
 dotenv.config();
 
@@ -71,13 +73,70 @@ if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
 }
 
-app.use('/uploads', (req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
-  res.setHeader('Content-Security-Policy', "frame-ancestors *");
-  res.removeHeader('X-Frame-Options');
-  next();
-}, express.static(path.resolve(uploadDir)));
+const handleServeUploads = async (req, res, next) => {
+  try {
+    const rawFilename = req.path.replace(/^\/+/, '');
+    if (!rawFilename) return next();
+
+    const filename = decodeURIComponent(rawFilename);
+    const diskPath = path.join(path.resolve(uploadDir), filename);
+
+    // Set common permissive headers for document previewing & downloads
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Content-Security-Policy', "frame-ancestors *");
+    res.removeHeader('X-Frame-Options');
+
+    // 1. If file is on local disk, serve directly
+    if (fs.existsSync(diskPath)) {
+      const mimeType = getMimeType(filename);
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(filename)}"`);
+      return res.sendFile(diskPath);
+    }
+
+    // 2. If missing from container disk (e.g. after Render redeployment/restart), retrieve from MongoDB Atlas
+    const document = await prisma.meetingDocument.findFirst({
+      where: {
+        OR: [
+          { filePath: `/uploads/${filename}` },
+          { filePath: filename },
+          { filePath: { endsWith: filename } },
+        ],
+      },
+    });
+
+    if (document && document.fileData && document.fileData.length > 0) {
+      const buffer = Buffer.from(document.fileData);
+
+      // Recreate/cache to local container disk for instant subsequent access
+      try {
+        if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+        fs.writeFileSync(diskPath, buffer);
+      } catch (cacheErr) {
+        console.warn('[Disk Cache Notice]', cacheErr.message);
+      }
+
+      const mimeType = document.mimeType || getMimeType(document.name || filename);
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Length', buffer.length);
+      res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(document.name || filename)}"`);
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      return res.send(buffer);
+    }
+
+    return res.status(404).json({
+      success: false,
+      message: `Cannot GET /uploads/${filename} - Document not found in persistent cloud storage.`,
+    });
+  } catch (err) {
+    console.error('[Uploads Storage Error]', err);
+    return next(err);
+  }
+};
+
+app.use('/uploads', handleServeUploads);
+app.use('/api/uploads', handleServeUploads);
 
 // Apply General Rate Limiter
 app.use('/api', apiLimiter);

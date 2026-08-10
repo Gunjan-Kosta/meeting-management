@@ -108,6 +108,8 @@ model MeetingDocument {
   filePath     String
   fileType     DocumentType
   fileSize     Int
+  mimeType     String?
+  fileData     Bytes?
   uploadedById String       @db.ObjectId
   uploadedBy   User         @relation(fields: [uploadedById], references: [id])
   createdAt    DateTime     @default(now())

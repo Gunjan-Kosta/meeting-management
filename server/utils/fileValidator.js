@@ -12,3 +12,17 @@ export const validateFileExtension = (filename) => {
 export const validateFileSize = (size) => {
   return size <= MAX_FILE_SIZE;
 };
+
+export const getMimeType = (filename = '') => {
+  const ext = path.extname(filename).toLowerCase();
+  const map = {
+    '.pdf': 'application/pdf',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+  };
+  return map[ext] || 'application/octet-stream';
+};

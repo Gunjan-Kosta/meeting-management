@@ -5,6 +5,20 @@ import { sendSuccess, sendError } from '../utils/responseHandler.js';
 import { recordAuditLog } from '../services/auditService.js';
 import { MAX_FILE_COUNT } from '../utils/fileValidator.js';
 
+export const getMimeType = (filename = '') => {
+  const ext = path.extname(filename).toLowerCase();
+  const map = {
+    '.pdf': 'application/pdf',
+    '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.png': 'image/png',
+    '.webp': 'image/webp',
+  };
+  return map[ext] || 'application/octet-stream';
+};
+
 export const uploadDocuments = async (req, res, next) => {
   try {
     const meetingId = req.params.meetingId || req.params.id;
@@ -48,6 +62,15 @@ export const uploadDocuments = async (req, res, next) => {
     const createdDocs = [];
 
     for (const file of files) {
+      let fileBuffer = null;
+      if (file.buffer) {
+        fileBuffer = file.buffer;
+      } else if (file.path && fs.existsSync(file.path)) {
+        fileBuffer = fs.readFileSync(file.path);
+      }
+
+      const mimeType = file.mimetype || getMimeType(file.originalname);
+
       const doc = await prisma.meetingDocument.create({
         data: {
           meetingId,
@@ -55,7 +78,21 @@ export const uploadDocuments = async (req, res, next) => {
           filePath: `/uploads/${file.filename}`,
           fileType: fileType,
           fileSize: file.size,
+          mimeType: mimeType,
+          fileData: fileBuffer ? Buffer.from(fileBuffer) : undefined,
           uploadedById: req.user.id,
+        },
+        select: {
+          id: true,
+          meetingId: true,
+          name: true,
+          filePath: true,
+          fileType: true,
+          fileSize: true,
+          mimeType: true,
+          uploadedById: true,
+          createdAt: true,
+          updatedAt: true,
         },
       });
       createdDocs.push(doc);
@@ -77,10 +114,11 @@ export const uploadDocuments = async (req, res, next) => {
 
 export const deleteDocument = async (req, res, next) => {
   try {
-    const { documentId } = req.params;
+    const { documentId, id } = req.params;
+    const targetDocId = documentId || id;
 
     const document = await prisma.meetingDocument.findUnique({
-      where: { id: documentId },
+      where: { id: targetDocId },
       include: { meeting: true },
     });
 
@@ -92,13 +130,19 @@ export const deleteDocument = async (req, res, next) => {
       return sendError(res, 'Cannot delete documents from a closed meeting.', 403);
     }
 
-    // Attempt to remove file from disk
-    const absolutePath = path.join(process.cwd(), document.filePath);
-    if (fs.existsSync(absolutePath)) {
-      fs.unlinkSync(absolutePath);
+    // Attempt to remove file from disk cache if present
+    const localUploadsDir = process.env.UPLOAD_DIR || './uploads';
+    const filename = path.basename(document.filePath);
+    const localPath = path.join(localUploadsDir, filename);
+    if (fs.existsSync(localPath)) {
+      try {
+        fs.unlinkSync(localPath);
+      } catch (err) {
+        console.warn('[Storage unlink warning]', err.message);
+      }
     }
 
-    await prisma.meetingDocument.delete({ where: { id: documentId } });
+    await prisma.meetingDocument.delete({ where: { id: targetDocId } });
 
     await recordAuditLog({
       userId: req.user.id,
@@ -108,6 +152,69 @@ export const deleteDocument = async (req, res, next) => {
     });
 
     return sendSuccess(res, 'Document deleted successfully');
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const serveDocumentById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const isDownload = req.query.download === 'true' || req.path.includes('/download');
+
+    const document = await prisma.meetingDocument.findUnique({
+      where: { id },
+    });
+
+    if (!document) {
+      return sendError(res, 'Document not found.', 404);
+    }
+
+    const mimeType = document.mimeType || getMimeType(document.name);
+    const disposition = isDownload ? 'attachment' : 'inline';
+
+    if (document.fileData && document.fileData.length > 0) {
+      const buffer = Buffer.from(document.fileData);
+
+      // Cache locally on disk for high performance
+      try {
+        const localUploadsDir = process.env.UPLOAD_DIR || './uploads';
+        if (!fs.existsSync(localUploadsDir)) fs.mkdirSync(localUploadsDir, { recursive: true });
+        const localPath = path.join(localUploadsDir, path.basename(document.filePath));
+        if (!fs.existsSync(localPath)) {
+          fs.writeFileSync(localPath, buffer);
+        }
+      } catch (cacheErr) {
+        console.warn('[Cache warning]', cacheErr.message);
+      }
+
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Length', buffer.length);
+      res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(document.name)}"`);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Content-Security-Policy', "frame-ancestors *");
+      res.removeHeader('X-Frame-Options');
+      res.setHeader('Cache-Control', 'public, max-age=86400');
+      return res.send(buffer);
+    }
+
+    // Fallback: check local disk
+    const filename = path.basename(document.filePath);
+    const localUploadsDir = process.env.UPLOAD_DIR || './uploads';
+    const localPath = path.join(localUploadsDir, filename);
+
+    if (fs.existsSync(localPath)) {
+      res.setHeader('Content-Type', mimeType);
+      res.setHeader('Content-Disposition', `${disposition}; filename="${encodeURIComponent(document.name)}"`);
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+      res.setHeader('Content-Security-Policy', "frame-ancestors *");
+      res.removeHeader('X-Frame-Options');
+      return res.sendFile(path.resolve(localPath));
+    }
+
+    return sendError(res, 'Document file data is not available.', 404);
   } catch (error) {
     next(error);
   }

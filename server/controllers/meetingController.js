@@ -161,7 +161,17 @@ export const getMeetingById = async (req, res, next) => {
       include: {
         creator: { select: { id: true, firstName: true, lastName: true, email: true } },
         documents: {
-          include: {
+          select: {
+            id: true,
+            meetingId: true,
+            name: true,
+            filePath: true,
+            fileType: true,
+            fileSize: true,
+            mimeType: true,
+            createdAt: true,
+            updatedAt: true,
+            uploadedById: true,
             uploadedBy: { select: { id: true, firstName: true, lastName: true } },
           },
         },
@@ -235,7 +245,7 @@ export const submitMeeting = async (req, res, next) => {
 
     const existingMeeting = await prisma.meeting.findUnique({
       where: { id },
-      include: { documents: true },
+      include: { documents: { select: { id: true, fileType: true } } },
     });
 
     if (!existingMeeting) {

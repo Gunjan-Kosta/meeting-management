@@ -6,7 +6,7 @@ import { checkRole } from '../middleware/rbacMiddleware.js';
 const router = express.Router();
 
 router.use(authenticateToken);
-router.use(checkRole(['STATE_ADMIN']));
+router.use(checkRole(['STATE_ADMIN', 'DISTRICT_USER', 'VIEWER']));
 
 router.get('/', getAuditLogs);
 
